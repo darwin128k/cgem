@@ -131,9 +131,35 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Extract changelog
+        id: changelog
+        run: |
+          python3 -c "
+import os, re, sys
+tag = os.environ['GITHUB_REF_NAME']
+ver = tag.removeprefix('v')
+with open('CHANGELOG.md') as f:
+    content = f.read()
+# match "## <ver> -" header
+pat = re.compile(r'^## ' + re.escape(ver) + r' \-.*$', re.MULTILINE)
+m = pat.search(content)
+if not m:
+    print('ERROR: no changelog section for ' + ver, file=sys.stderr)
+    sys.exit(1)
+start = m.end()
+# find next ## or end
+nxt = re.search(r'^## ', content[start:], re.MULTILINE)
+body = content[start:nxt.start() if nxt else None].strip()
+# write to file to avoid escaping issues
+with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+    out.write('body<<EOF\n')
+    out.write(body + '\n')
+    out.write('EOF\n')
+"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.body }}
           files: cgem-*/*
           fail_on_unmatched_files: true

@@ -116,52 +116,33 @@ jobs:
           retention-days: 30
 
   release:
-    name: Release
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Generate release body
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          python3 -c "
-import re
-with open('CHANGELOG.md') as f:
-    content = f.read()
-pat = re.compile(r'^## ' + re.escape('$version') + r' \-.*$', re.MULTILINE)
-m = pat.search(content)
-if m:
-    start = m.end()
-    nxt = re.search(r'^## ', content[start:], re.MULTILINE)
-    body = content[start:nxt.start() if nxt else None].strip()
-    with open('/tmp/release_body.md', 'w') as out:
-        out.write(body + '\n')
-else:
-    # fallback — let gh generate notes
-    touch /tmp/release_body.md
-"
+      - uses: actions/download-artifact@v4
 
       - name: Create Release
         run: |
-          if [ -s /tmp/release_body.md ]; then
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## " ver " -" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/body.md
+          if [ -s /tmp/body.md ]; then
             gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --notes-file /tmp/release_body.md \
+              --title "$GITHUB_REF_NAME" --notes-file /tmp/body.md \
               cgem-*/*
           else
             gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --generate-notes \
+              --title "$GITHUB_REF_NAME" --generate-notes \
               cgem-*/*
           fi
         env:

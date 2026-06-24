@@ -131,29 +131,38 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
-      - name: Extract changelog
+      - name: Generate release body
         run: |
+          version="${GITHUB_REF_NAME#v}"
           python3 -c "
-import os, re, sys
-tag = os.environ['GITHUB_REF_NAME']
-ver = tag.removeprefix('v')
+import re
 with open('CHANGELOG.md') as f:
     content = f.read()
-pat = re.compile(r'^## ' + re.escape(ver) + r' \-.*$', re.MULTILINE)
+pat = re.compile(r'^## ' + re.escape('$version') + r' \-.*$', re.MULTILINE)
 m = pat.search(content)
-if not m:
-    print('ERROR: no changelog section for ' + ver, file=sys.stderr)
-    sys.exit(1)
-start = m.end()
-nxt = re.search(r'^## ', content[start:], re.MULTILINE)
-body = content[start:nxt.start() if nxt else None].strip()
-with open('/tmp/release_body.md', 'w') as out:
-    out.write(body + '\n')
+if m:
+    start = m.end()
+    nxt = re.search(r'^## ', content[start:], re.MULTILINE)
+    body = content[start:nxt.start() if nxt else None].strip()
+    with open('/tmp/release_body.md', 'w') as out:
+        out.write(body + '\n')
+else:
+    # fallback — let gh generate notes
+    touch /tmp/release_body.md
 "
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: /tmp/release_body.md
-          files: cgem-*/*
-          fail_on_unmatched_files: true
+        run: |
+          if [ -s /tmp/release_body.md ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/release_body.md \
+              cgem-*/*
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              cgem-*/*
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

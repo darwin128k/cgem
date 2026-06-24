@@ -1,7 +1,9 @@
 <div align="center">
-<img src="assets/gem-logo.svg" alt="CGEM" width="50%" vspace="6"><br>
+<img src="assets/gem-logo.svg" alt="CGEM" width="50%" vspace="12"><br><br>
 <a href="#linux"><img src="https://img.shields.io/badge/Linux-supported-009688?style=for-the-badge&logo=linux&logoColor=white" alt="Linux"></a><a href="#windows-1011"><img src="https://img.shields.io/badge/Windows%2010%2F11-supported-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows 10/11"></a><a href="#windows-xp"><img src="https://img.shields.io/badge/Windows%20XP-supported-3C8D0D?style=for-the-badge&logo=windows&logoColor=white" alt="Windows XP"></a>
 </div>
+
+## About
 
 CGEM is a small DOS-style terminal editor written in C. It runs on Linux
 and Windows 10/11 terminals. Windows XP is supported through the legacy

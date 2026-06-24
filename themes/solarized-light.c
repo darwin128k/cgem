@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_solarized_light = {
+    .name = "solarized-light",
+    .editor = TC(101, 123, 131, 253, 246, 227),
+    .editor_active = TC(101, 123, 131, 238, 232, 213),
+    .keyword = TCB(211, 54, 130, 253, 246, 227),
+    .keyword_active = TCB(211, 54, 130, 238, 232, 213),
+    .name_color = TC(133, 153, 0, 253, 246, 227),
+    .name_active = TC(133, 153, 0, 238, 232, 213),
+    .punctuation = TC(42, 161, 152, 253, 246, 227),
+    .punctuation_active = TC(42, 161, 152, 238, 232, 213),
+    .builtin = TC(108, 113, 196, 253, 246, 227),
+    .builtin_active = TC(108, 113, 196, 238, 232, 213),
+    .string_color = TC(181, 137, 0, 253, 246, 227),
+    .string_active = TC(181, 137, 0, 238, 232, 213),
+    .muted = TC(147, 161, 161, 253, 246, 227),
+    .header = TC(101, 123, 131, 238, 232, 213),
+    .status = TC(147, 161, 161, 221, 215, 196),
+    .gutter = TC(147, 161, 161, 253, 246, 227),
+    .ghost = TC(147, 161, 161, 253, 246, 227),
+    .ghost_active = TC(147, 161, 161, 238, 232, 213),
+    .doc_muted = TC(131, 148, 150, 253, 246, 227),
+    .builtin_muted = TC(125, 120, 165, 253, 246, 227),
+    .string_muted = TC(160, 130, 40, 253, 246, 227),
+    .punct_muted = TC(120, 150, 145, 253, 246, 227),
+    .gutter_active_row = TCB(211, 54, 130, 238, 232, 213),
+};

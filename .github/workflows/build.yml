@@ -1,0 +1,115 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-x86_64
+            label: Linux x86_64
+            target: linux
+            arch: x86_64
+            winnt: ""
+
+          - id: windows-xp-i686
+            label: Windows XP 32-bit
+            target: windows-xp
+            arch: i686
+            winnt: "0x0501"
+
+          - id: windows-xp-x86_64
+            label: Windows XP 64-bit
+            target: windows-xp
+            arch: x86_64
+            winnt: "0x0502"
+
+          - id: windows-vista-i686
+            label: Windows Vista 32-bit
+            target: windows-vista
+            arch: i686
+            winnt: "0x0600"
+
+          - id: windows-vista-x86_64
+            label: Windows Vista 64-bit
+            target: windows-vista
+            arch: x86_64
+            winnt: "0x0600"
+
+          - id: windows-7-i686
+            label: Windows 7 32-bit
+            target: windows-7
+            arch: i686
+            winnt: "0x0601"
+
+          - id: windows-7-x86_64
+            label: Windows 7 64-bit
+            target: windows-7
+            arch: x86_64
+            winnt: "0x0601"
+
+          - id: windows-8-i686
+            label: Windows 8 32-bit
+            target: windows-8
+            arch: i686
+            winnt: "0x0602"
+
+          - id: windows-8-x86_64
+            label: Windows 8 64-bit
+            target: windows-8
+            arch: x86_64
+            winnt: "0x0602"
+
+          - id: windows-10-i686
+            label: Windows 10 32-bit
+            target: windows-10
+            arch: i686
+            winnt: "0x0A00"
+
+          - id: windows-10-x86_64
+            label: Windows 10 64-bit
+            target: windows-10
+            arch: x86_64
+            winnt: "0x0A00"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build \
+            binutils-mingw-w64-i686 binutils-mingw-w64-x86-64 \
+            gcc-mingw-w64-i686 gcc-mingw-w64-x86-64 \
+            mingw-w64-i686-dev mingw-w64-x86-64-dev
+
+      - name: Build
+        run: |
+          chmod +x scripts/ci-build.sh
+          if [ "${{ matrix.target }}" = "linux" ]; then
+            ./scripts/ci-build.sh "${{ matrix.target }}" "${{ matrix.arch }}"
+          else
+            ./scripts/ci-build.sh "${{ matrix.target }}" "${{ matrix.arch }}" "${{ matrix.winnt }}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cgem-${{ matrix.id }}
+          path: dist/cgem-${{ matrix.id }}*
+          if-no-files-found: error
+          retention-days: 30

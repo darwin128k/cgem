@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_github_light = {
+    .name = "github-light",
+    .editor = TC(36, 41, 47, 255, 255, 255),
+    .editor_active = TC(36, 41, 47, 246, 248, 250),
+    .keyword = TCB(207, 34, 46, 255, 255, 255),
+    .keyword_active = TCB(207, 34, 46, 246, 248, 250),
+    .name_color = TC(17, 99, 41, 255, 255, 255),
+    .name_active = TC(17, 99, 41, 246, 248, 250),
+    .punctuation = TC(5, 80, 174, 255, 255, 255),
+    .punctuation_active = TC(5, 80, 174, 246, 248, 250),
+    .builtin = TC(130, 80, 223, 255, 255, 255),
+    .builtin_active = TC(130, 80, 223, 246, 248, 250),
+    .string_color = TC(10, 48, 105, 255, 255, 255),
+    .string_active = TC(10, 48, 105, 246, 248, 250),
+    .muted = TC(101, 109, 118, 255, 255, 255),
+    .header = TC(36, 41, 47, 246, 248, 250),
+    .status = TC(101, 109, 118, 234, 238, 242),
+    .gutter = TC(101, 109, 118, 255, 255, 255),
+    .ghost = TC(101, 109, 118, 255, 255, 255),
+    .ghost_active = TC(101, 109, 118, 246, 248, 250),
+    .doc_muted = TC(120, 125, 132, 255, 255, 255),
+    .builtin_muted = TC(120, 100, 180, 255, 255, 255),
+    .string_muted = TC(80, 100, 130, 255, 255, 255),
+    .punct_muted = TC(90, 120, 170, 255, 255, 255),
+    .gutter_active_row = TCB(207, 34, 46, 246, 248, 250),
+};

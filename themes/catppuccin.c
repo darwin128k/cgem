@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_catppuccin = {
+    .name = "catppuccin",
+    .editor = TC(205, 214, 244, 30, 30, 46),
+    .editor_active = TC(205, 214, 244, 49, 50, 68),
+    .keyword = TCB(243, 139, 168, 30, 30, 46),
+    .keyword_active = TCB(243, 139, 168, 49, 50, 68),
+    .name_color = TC(166, 227, 161, 30, 30, 46),
+    .name_active = TC(166, 227, 161, 49, 50, 68),
+    .punctuation = TC(148, 226, 213, 30, 30, 46),
+    .punctuation_active = TC(148, 226, 213, 49, 50, 68),
+    .builtin = TC(203, 166, 247, 30, 30, 46),
+    .builtin_active = TC(203, 166, 247, 49, 50, 68),
+    .string_color = TC(249, 226, 175, 30, 30, 46),
+    .string_active = TC(249, 226, 175, 49, 50, 68),
+    .muted = TC(108, 112, 134, 30, 30, 46),
+    .header = TC(205, 214, 244, 49, 50, 68),
+    .status = TC(108, 112, 134, 24, 24, 37),
+    .gutter = TC(108, 112, 134, 30, 30, 46),
+    .ghost = TC(108, 112, 134, 30, 30, 46),
+    .ghost_active = TC(108, 112, 134, 49, 50, 68),
+    .doc_muted = TC(98, 104, 128, 30, 30, 46),
+    .builtin_muted = TC(170, 145, 210, 30, 30, 46),
+    .string_muted = TC(200, 190, 150, 30, 30, 46),
+    .punct_muted = TC(120, 195, 185, 30, 30, 46),
+    .gutter_active_row = TCB(243, 139, 168, 49, 50, 68),
+};

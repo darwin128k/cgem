@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_one_light = {
+    .name = "one-light",
+    .editor = TC(56, 58, 66, 250, 250, 250),
+    .editor_active = TC(56, 58, 66, 234, 236, 239),
+    .keyword = TCB(228, 86, 73, 250, 250, 250),
+    .keyword_active = TCB(228, 86, 73, 234, 236, 239),
+    .name_color = TC(80, 161, 79, 250, 250, 250),
+    .name_active = TC(80, 161, 79, 234, 236, 239),
+    .punctuation = TC(64, 120, 242, 250, 250, 250),
+    .punctuation_active = TC(64, 120, 242, 234, 236, 239),
+    .builtin = TC(166, 38, 164, 250, 250, 250),
+    .builtin_active = TC(166, 38, 164, 234, 236, 239),
+    .string_color = TC(80, 161, 79, 250, 250, 250),
+    .string_active = TC(80, 161, 79, 234, 236, 239),
+    .muted = TC(160, 161, 167, 250, 250, 250),
+    .header = TC(56, 58, 66, 234, 236, 239),
+    .status = TC(160, 161, 167, 220, 222, 225),
+    .gutter = TC(160, 161, 167, 250, 250, 250),
+    .ghost = TC(160, 161, 167, 250, 250, 250),
+    .ghost_active = TC(160, 161, 167, 234, 236, 239),
+    .doc_muted = TC(140, 142, 148, 250, 250, 250),
+    .builtin_muted = TC(150, 110, 150, 250, 250, 250),
+    .string_muted = TC(100, 140, 100, 250, 250, 250),
+    .punct_muted = TC(120, 140, 200, 250, 250, 250),
+    .gutter_active_row = TCB(228, 86, 73, 234, 236, 239),
+};

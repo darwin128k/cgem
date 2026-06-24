@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_nord = {
+    .name = "nord",
+    .editor = TC(216, 222, 233, 46, 52, 64),
+    .editor_active = TC(216, 222, 233, 59, 66, 82),
+    .keyword = TCB(191, 97, 106, 46, 52, 64),
+    .keyword_active = TCB(191, 97, 106, 59, 66, 82),
+    .name_color = TC(163, 190, 140, 46, 52, 64),
+    .name_active = TC(163, 190, 140, 59, 66, 82),
+    .punctuation = TC(136, 192, 208, 46, 52, 64),
+    .punctuation_active = TC(136, 192, 208, 59, 66, 82),
+    .builtin = TC(180, 142, 173, 46, 52, 64),
+    .builtin_active = TC(180, 142, 173, 59, 66, 82),
+    .string_color = TC(235, 203, 139, 46, 52, 64),
+    .string_active = TC(235, 203, 139, 59, 66, 82),
+    .muted = TC(76, 86, 106, 46, 52, 64),
+    .header = TC(216, 222, 233, 59, 66, 82),
+    .status = TC(76, 86, 106, 40, 44, 52),
+    .gutter = TC(76, 86, 106, 46, 52, 64),
+    .ghost = TC(76, 86, 106, 46, 52, 64),
+    .ghost_active = TC(76, 86, 106, 59, 66, 82),
+    .doc_muted = TC(100, 110, 130, 46, 52, 64),
+    .builtin_muted = TC(150, 125, 155, 46, 52, 64),
+    .string_muted = TC(190, 170, 120, 46, 52, 64),
+    .punct_muted = TC(110, 160, 175, 46, 52, 64),
+    .gutter_active_row = TCB(191, 97, 106, 59, 66, 82),
+};

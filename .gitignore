@@ -1,0 +1,6 @@
+.idea
+.cgem
+/build/
+/build-ci*/
+/dist/
+/.toolchain/

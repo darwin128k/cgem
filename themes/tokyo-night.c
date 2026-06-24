@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_tokyo_night = {
+    .name = "tokyo-night",
+    .editor = TC(169, 177, 214, 26, 27, 38),
+    .editor_active = TC(169, 177, 214, 41, 46, 66),
+    .keyword = TCB(247, 118, 142, 26, 27, 38),
+    .keyword_active = TCB(247, 118, 142, 41, 46, 66),
+    .name_color = TC(158, 206, 106, 26, 27, 38),
+    .name_active = TC(158, 206, 106, 41, 46, 66),
+    .punctuation = TC(125, 207, 255, 26, 27, 38),
+    .punctuation_active = TC(125, 207, 255, 41, 46, 66),
+    .builtin = TC(187, 154, 247, 26, 27, 38),
+    .builtin_active = TC(187, 154, 247, 41, 46, 66),
+    .string_color = TC(224, 175, 104, 26, 27, 38),
+    .string_active = TC(224, 175, 104, 41, 46, 66),
+    .muted = TC(86, 95, 137, 26, 27, 38),
+    .header = TC(169, 177, 214, 41, 46, 66),
+    .status = TC(86, 95, 137, 22, 22, 30),
+    .gutter = TC(86, 95, 137, 26, 27, 38),
+    .ghost = TC(86, 95, 137, 26, 27, 38),
+    .ghost_active = TC(86, 95, 137, 41, 46, 66),
+    .doc_muted = TC(86, 95, 137, 26, 27, 38),
+    .builtin_muted = TC(155, 135, 210, 26, 27, 38),
+    .string_muted = TC(180, 155, 100, 26, 27, 38),
+    .punct_muted = TC(100, 175, 220, 26, 27, 38),
+    .gutter_active_row = TCB(247, 118, 142, 41, 46, 66),
+};

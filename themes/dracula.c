@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_dracula = {
+    .name = "dracula",
+    .editor = TC(248, 248, 242, 40, 42, 54),
+    .editor_active = TC(248, 248, 242, 68, 71, 90),
+    .keyword = TCB(255, 121, 198, 40, 42, 54),
+    .keyword_active = TCB(255, 121, 198, 68, 71, 90),
+    .name_color = TC(80, 250, 123, 40, 42, 54),
+    .name_active = TC(80, 250, 123, 68, 71, 90),
+    .punctuation = TC(139, 233, 253, 40, 42, 54),
+    .punctuation_active = TC(139, 233, 253, 68, 71, 90),
+    .builtin = TC(189, 147, 249, 40, 42, 54),
+    .builtin_active = TC(189, 147, 249, 68, 71, 90),
+    .string_color = TC(241, 250, 140, 40, 42, 54),
+    .string_active = TC(241, 250, 140, 68, 71, 90),
+    .muted = TC(98, 114, 164, 40, 42, 54),
+    .header = TC(248, 248, 242, 52, 55, 70),
+    .status = TC(98, 114, 164, 33, 34, 44),
+    .gutter = TC(98, 114, 164, 40, 42, 54),
+    .ghost = TC(98, 114, 164, 40, 42, 54),
+    .ghost_active = TC(98, 114, 164, 68, 71, 90),
+    .doc_muted = TC(86, 100, 140, 40, 42, 54),
+    .builtin_muted = TC(120, 110, 150, 40, 42, 54),
+    .string_muted = TC(120, 128, 100, 40, 42, 54),
+    .punct_muted = TC(80, 100, 120, 40, 42, 54),
+    .gutter_active_row = TCB(255, 121, 198, 68, 71, 90),
+};

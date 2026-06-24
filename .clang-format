@@ -1,0 +1,8 @@
+BinPackParameters: false
+BreakBeforeBraces: Allman
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+PPIndentWidth: 4
+TabWidth: 4
+UseCRLF: false
+UseTab: Never

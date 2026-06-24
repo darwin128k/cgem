@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_solarized_dark = {
+    .name = "solarized-dark",
+    .editor = TC(131, 148, 150, 0, 43, 54),
+    .editor_active = TC(131, 148, 150, 7, 54, 66),
+    .keyword = TCB(211, 54, 130, 0, 43, 54),
+    .keyword_active = TCB(211, 54, 130, 7, 54, 66),
+    .name_color = TC(133, 153, 0, 0, 43, 54),
+    .name_active = TC(133, 153, 0, 7, 54, 66),
+    .punctuation = TC(42, 161, 152, 0, 43, 54),
+    .punctuation_active = TC(42, 161, 152, 7, 54, 66),
+    .builtin = TC(108, 113, 196, 0, 43, 54),
+    .builtin_active = TC(108, 113, 196, 7, 54, 66),
+    .string_color = TC(181, 137, 0, 0, 43, 54),
+    .string_active = TC(181, 137, 0, 7, 54, 66),
+    .muted = TC(88, 110, 117, 0, 43, 54),
+    .header = TC(131, 148, 150, 7, 54, 66),
+    .status = TC(88, 110, 117, 0, 35, 45),
+    .gutter = TC(88, 110, 117, 0, 43, 54),
+    .ghost = TC(88, 110, 117, 0, 43, 54),
+    .ghost_active = TC(88, 110, 117, 7, 54, 66),
+    .doc_muted = TC(101, 123, 131, 0, 43, 54),
+    .builtin_muted = TC(105, 100, 165, 0, 43, 54),
+    .string_muted = TC(150, 120, 40, 0, 43, 54),
+    .punct_muted = TC(90, 140, 135, 0, 43, 54),
+    .gutter_active_row = TCB(211, 54, 130, 7, 54, 66),
+};

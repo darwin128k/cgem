@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 8 256 78" role="img" aria-label="CGEM logo">
+  <defs>
+    <linearGradient id="facet-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4dd0c8"/>
+      <stop offset="100%" stop-color="#009688"/>
+    </linearGradient>
+    <linearGradient id="facet-left" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#82aaff"/>
+      <stop offset="100%" stop-color="#263238"/>
+    </linearGradient>
+    <linearGradient id="facet-right" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#89ddf3"/>
+      <stop offset="100%" stop-color="#30454d"/>
+    </linearGradient>
+    <linearGradient id="facet-crown" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#eeffff"/>
+      <stop offset="45%" stop-color="#b2ebf2"/>
+      <stop offset="100%" stop-color="#00897b"/>
+    </linearGradient>
+    <linearGradient id="facet-pavilion" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#37474f"/>
+      <stop offset="100%" stop-color="#1a2327"/>
+    </linearGradient>
+    <linearGradient id="facet-girdle" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#546e7a"/>
+      <stop offset="50%" stop-color="#78909c"/>
+      <stop offset="100%" stop-color="#455a64"/>
+    </linearGradient>
+    <linearGradient id="wordmark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#eeffff"/>
+      <stop offset="100%" stop-color="#b2ccd4"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(32, 0)">
+    <!-- Gem icon (scaled to 96px height) -->
+    <g transform="translate(8,0) scale(0.75)">
+      <polygon points="64,14 96,42 64,58 32,42" fill="url(#facet-crown)"/>
+      <polygon points="32,42 64,58 64,42" fill="url(#facet-left)" opacity="0.92"/>
+      <polygon points="96,42 64,58 64,42" fill="url(#facet-right)" opacity="0.92"/>
+      <polygon points="64,14 64,42 32,42" fill="url(#facet-top)" opacity="0.55"/>
+      <polygon points="64,14 96,42 64,42" fill="#ffffff" opacity="0.18"/>
+      <polygon points="20,58 108,58 96,66 32,66" fill="url(#facet-girdle)"/>
+      <polygon points="32,66 64,114 64,66" fill="url(#facet-left)"/>
+      <polygon points="96,66 64,114 64,66" fill="url(#facet-right)"/>
+      <polygon points="20,58 32,66 64,114" fill="url(#facet-pavilion)" opacity="0.95"/>
+      <polygon points="108,58 96,66 64,114" fill="#1a2327"/>
+      <g fill="none" stroke="#eeffff" stroke-opacity="0.35" stroke-width="0.75" stroke-linejoin="round">
+        <polygon points="64,14 96,42 64,58 32,42"/>
+        <line x1="64" y1="14" x2="64" y2="58"/>
+        <line x1="32" y1="42" x2="96" y2="42"/>
+        <polygon points="20,58 108,58 96,66 32,66"/>
+        <line x1="64" y1="58" x2="64" y2="114"/>
+        <line x1="32" y1="66" x2="96" y2="66"/>
+        <line x1="20" y1="58" x2="64" y2="114"/>
+        <line x1="108" y1="58" x2="64" y2="114"/>
+      </g>
+      <polygon points="64,20 78,38 64,46 50,38" fill="#ffffff" opacity="0.22"/>
+    </g>
+
+    <!-- Wordmark -->
+    <text x="112" y="62"
+          font-family="ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace"
+          font-size="42"
+          font-weight="700"
+          letter-spacing="3"
+          fill="url(#wordmark)">CGEM</text>
+  </g>
+</svg>

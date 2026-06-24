@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_onedark = {
+    .name = "one-dark",
+    .editor = TC(171, 178, 191, 40, 44, 52),
+    .editor_active = TC(171, 178, 191, 50, 56, 66),
+    .keyword = TCB(224, 108, 117, 40, 44, 52),
+    .keyword_active = TCB(224, 108, 117, 50, 56, 66),
+    .name_color = TC(152, 195, 121, 40, 44, 52),
+    .name_active = TC(152, 195, 121, 50, 56, 66),
+    .punctuation = TC(97, 175, 239, 40, 44, 52),
+    .punctuation_active = TC(97, 175, 239, 50, 56, 66),
+    .builtin = TC(198, 120, 221, 40, 44, 52),
+    .builtin_active = TC(198, 120, 221, 50, 56, 66),
+    .string_color = TC(152, 195, 121, 40, 44, 52),
+    .string_active = TC(152, 195, 121, 50, 56, 66),
+    .muted = TC(92, 99, 112, 40, 44, 52),
+    .header = TC(171, 178, 191, 33, 37, 43),
+    .status = TC(92, 99, 112, 28, 30, 34),
+    .gutter = TC(92, 99, 112, 40, 44, 52),
+    .ghost = TC(92, 99, 112, 40, 44, 52),
+    .ghost_active = TC(92, 99, 112, 50, 56, 66),
+    .doc_muted = TC(80, 86, 98, 40, 44, 52),
+    .builtin_muted = TC(110, 95, 125, 40, 44, 52),
+    .string_muted = TC(100, 120, 95, 40, 44, 52),
+    .punct_muted = TC(75, 90, 110, 40, 44, 52),
+    .gutter_active_row = TCB(224, 108, 117, 50, 56, 66),
+};

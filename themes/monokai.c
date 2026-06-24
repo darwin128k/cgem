@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_monokai = {
+    .name = "monokai-dark",
+    .editor = TC(248, 248, 242, 39, 40, 34),
+    .editor_active = TC(248, 248, 242, 48, 49, 43),
+    .keyword = TCB(249, 38, 114, 39, 40, 34),
+    .keyword_active = TCB(249, 38, 114, 48, 49, 43),
+    .name_color = TC(166, 226, 46, 39, 40, 34),
+    .name_active = TC(166, 226, 46, 48, 49, 43),
+    .punctuation = TC(102, 217, 239, 39, 40, 34),
+    .punctuation_active = TC(102, 217, 239, 48, 49, 43),
+    .builtin = TC(174, 129, 255, 39, 40, 34),
+    .builtin_active = TC(174, 129, 255, 48, 49, 43),
+    .string_color = TC(230, 219, 116, 39, 40, 34),
+    .string_active = TC(230, 219, 116, 48, 49, 43),
+    .muted = TC(117, 113, 94, 39, 40, 34),
+    .header = TC(248, 248, 242, 73, 72, 62),
+    .status = TC(117, 113, 94, 30, 31, 28),
+    .gutter = TC(117, 113, 94, 39, 40, 34),
+    .ghost = TC(117, 113, 94, 39, 40, 34),
+    .ghost_active = TC(117, 113, 94, 48, 49, 43),
+    .doc_muted = TC(98, 96, 86, 39, 40, 34),
+    .builtin_muted = TC(105, 100, 115, 39, 40, 34),
+    .string_muted = TC(110, 106, 90, 39, 40, 34),
+    .punct_muted = TC(92, 98, 100, 39, 40, 34),
+    .gutter_active_row = TCB(249, 38, 114, 48, 49, 43),
+};

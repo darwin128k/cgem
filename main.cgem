@@ -1,0 +1,260 @@
+package lh:
+    module initializer:
+        fn module:
+            param values as ...
+            return c.initializer(values)
+
+    @doc:
+        "The C void type and pointer aliases."
+    module void:
+        @define
+        @doc:
+            "The C void type."
+        type module as c.void
+
+        @define
+        @doc:
+            "A pointer to an unspecified type."
+        @pointer
+        type ptr as lh.void
+
+    module ptr:
+        @define
+        @doc:
+            "A generic pointer type."
+        type module as lh.void.ptr
+
+    @noscope
+    module char:
+        @doc:
+            "The plain C character type."
+        type module as c.char
+        @doc:
+            "The signed C character type."
+        type schar as c.schar
+        @doc:
+            "The unsigned C character type."
+        type uchar as c.uchar
+
+    module byte:
+        @doc:
+            "An unsigned byte-sized value."
+        type module as lh.uchar
+
+    module bool:
+        @doc:
+            "A boolean value represented by a byte."
+            "Use lh_bool_false and lh_bool_true as its named values."
+        enum module as lh.byte:
+            case false
+            case true
+
+    @doc:
+        "Reusable structure field macros."
+    package pair:
+        package bounds:
+            module fields:
+                @doc:
+                    "A pair of typed values."
+                @mutable
+                struct module:
+                    @doc("Type of the first value.")
+                    field first as param first_type
+                    @doc("Type of the second value.")
+                    field second as param second_type
+
+    @doc:
+        "C integer type aliases and fixed-width names."
+    @noscope
+    package numeric:
+        @noscope
+        module types:
+            @doc:
+                "A signed integer with the C short representation."
+            type short as c.short
+            @doc:
+                "A signed integer with the C int representation."
+            type int as c.int
+            @doc:
+                "A signed integer with the C long representation."
+            type long as c.long
+            @doc:
+                "A signed integer with the C long long representation."
+            type llong as c.llong
+
+            @doc:
+                "An unsigned integer with the C short representation."
+            type ushort as c.ushort
+            @doc:
+                "An unsigned integer with the C int representation."
+            type uint as c.uint
+            @doc:
+                "An unsigned integer with the C long representation."
+            type ulong as c.ulong
+            @doc:
+                "An unsigned integer with the C long long representation."
+            type ullong as c.ullong
+
+            @doc:
+                "An explicitly signed C short integer."
+            type sshort as c.sshort
+            @doc:
+                "An explicitly signed C int integer."
+            type sint as c.sint
+            @doc:
+                "An explicitly signed C long integer."
+            type slong as c.slong
+            @doc:
+                "An explicitly signed C long long integer."
+            type sllong as c.sllong
+
+        @noscope
+        module fixed:
+            @doc:
+                "A signed integer type with at least 8 bits."
+            type s8 as lh.schar
+            @doc:
+                "A signed integer type with at least 16 bits."
+            type s16 as lh.sshort
+            @doc:
+                "A signed integer type with at least 32 bits."
+            type s32 as lh.sint
+            @doc:
+                "A signed integer type with at least 64 bits."
+            type s64 as lh.sllong
+
+            @doc:
+                "An unsigned integer type with at least 8 bits."
+            type u8 as lh.uchar
+            @doc:
+                "An unsigned integer type with at least 16 bits."
+            type u16 as lh.ushort
+            @doc:
+                "An unsigned integer type with at least 32 bits."
+            type u32 as lh.uint
+            @doc:
+                "An unsigned integer type with at least 64 bits."
+            type u64 as lh.ullong
+
+    package interval:
+        package bounds:
+            module fields:
+                @doc:
+                    "Half-open interval with typed lower and upper bounds."
+                struct module:
+                    @doc("Lower bound (inclusive).")
+                    field lower as param lower_type
+                    @doc("Upper bound (exclusive).")
+                    field upper as param upper_type
+
+        module flags:
+            enum module as lh.byte:
+                case closed
+                case ropen = 1 << 0
+                case lopen = 1 << 1
+                case open  = lh.interval.flags.lopen | lh.interval.flags.ropen
+
+    package version:
+        module fields:
+            @mutable
+            struct module:
+                @doc("Major version number.")
+                field major as param major_type
+                @doc("Minor version number.")
+                field minor as param minor_type
+                @doc("Patch version number.")
+                field patch as param patch_type
+
+        module major:
+            type module as lh.u16
+
+        module minor:
+            type module as lh.u8
+
+        module patch:
+            type module as lh.u8
+
+    module version:
+        struct module:
+            lh.version.fields(lh.version.major, lh.version.minor, lh.version.patch)
+
+            fn get_major:
+                return self.major
+
+            fn get_minor:
+                return self.minor
+
+            fn get_patch:
+                return self.patch
+
+            @mutable
+            fn pack:
+                @pointer
+                param major as lh.version.major
+                @pointer
+                param minor as lh.version.minor
+                @pointer
+                param patch as lh.version.patch
+
+                self.major =? major
+                self.minor =? minor
+                self.patch =? patch
+
+            fn unpack:
+                @mutable
+                @pointer
+                param major as lh.version.major
+                @mutable
+                @pointer
+                param minor as lh.version.minor
+                @mutable
+                @pointer
+                param patch as lh.version.patch
+
+                major ?= self.major
+                minor ?= self.minor
+                patch ?= self.patch
+
+            @mutable
+            fn set_major:
+                param value as lh.version.major
+                self.major = value
+
+            @mutable
+            fn set_minor:
+                param value as lh.version.minor
+                self.minor = value
+
+            @mutable
+            fn set_patch:
+                param value as lh.version.patch
+                self.patch = value
+
+            @mutable
+            fn set:
+                self.set_major:
+                    param major as lh.version.major
+                self.set_minor:
+                    param minor as lh.version.minor
+                self.set_patch:
+                    param patch as lh.version.patch
+
+            @mutable
+            @initializer
+            fn init:
+                self.set:
+                    param major as lh.version.major
+                    param minor as lh.version.minor
+                    param patch as lh.version.patch
+
+    package return:
+        module code:
+            @doc:
+                "A code returned by an operation."
+            type module as lh.int
+
+    package error:
+        module code:
+            @doc:
+                "An error code returned by a failed operation."
+            type module as lh.return.code

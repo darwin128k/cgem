@@ -1,0 +1,28 @@
+#include "cgem/palette.h"
+
+const ThemePalette theme_palette_gruvbox_light = {
+    .name = "gruvbox-light",
+    .editor = TC(60, 56, 54, 251, 241, 199),
+    .editor_active = TC(60, 56, 54, 235, 219, 178),
+    .keyword = TCB(204, 36, 29, 251, 241, 199),
+    .keyword_active = TCB(204, 36, 29, 235, 219, 178),
+    .name_color = TC(121, 116, 14, 251, 241, 199),
+    .name_active = TC(121, 116, 14, 235, 219, 178),
+    .punctuation = TC(7, 102, 120, 251, 241, 199),
+    .punctuation_active = TC(7, 102, 120, 235, 219, 178),
+    .builtin = TC(143, 63, 113, 251, 241, 199),
+    .builtin_active = TC(143, 63, 113, 235, 219, 178),
+    .string_color = TC(181, 118, 20, 251, 241, 199),
+    .string_active = TC(181, 118, 20, 235, 219, 178),
+    .muted = TC(146, 131, 116, 251, 241, 199),
+    .header = TC(60, 56, 54, 235, 219, 178),
+    .status = TC(146, 131, 116, 220, 210, 175),
+    .gutter = TC(146, 131, 116, 251, 241, 199),
+    .ghost = TC(146, 131, 116, 251, 241, 199),
+    .ghost_active = TC(146, 131, 116, 235, 219, 178),
+    .doc_muted = TC(130, 125, 110, 251, 241, 199),
+    .builtin_muted = TC(150, 100, 130, 251, 241, 199),
+    .string_muted = TC(160, 120, 50, 251, 241, 199),
+    .punct_muted = TC(80, 120, 130, 251, 241, 199),
+    .gutter_active_row = TCB(204, 36, 29, 235, 219, 178),
+};

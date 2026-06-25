@@ -238,3 +238,9 @@ package lh:
             @doc:
                 "An error code returned by a failed operation."
             type module as lh.return.code
+
+        module fields:
+            @mutable
+            struct module:
+                field code as param code_type
+                field desc as param desc_type

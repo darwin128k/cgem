@@ -239,6 +239,58 @@ static void rollback_param(char **params, size_t *param_count)
     (*param_count)--;
 }
 
+static int append_parsed_param(char ***params, bool **param_variadic,
+                               ParamRequire **param_requires,
+                               size_t *param_count, char *name,
+                               ParamRequire require, size_t line_number,
+                               char *error, size_t error_size)
+{
+    char **grown_params;
+    bool *grown_variadic;
+    ParamRequire *grown_requires;
+
+    if (*param_count > 0 && (*param_variadic)[*param_count - 1]) {
+        free(name);
+        cg_set_error(error, error_size,
+                     "line %zu: variadic parameter must be last", line_number);
+        return -1;
+    }
+    if (cg_name_in_list(*params, *param_count, name)) {
+        cg_set_error(error, error_size, "line %zu: duplicate parameter: %s",
+                     line_number, name);
+        free(name);
+        return -1;
+    }
+    grown_params = realloc(*params, (*param_count + 1) * sizeof(**params));
+    if (!grown_params) {
+        free(name);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    *params = grown_params;
+    grown_variadic = realloc(*param_variadic,
+                             (*param_count + 1) * sizeof(**param_variadic));
+    if (!grown_variadic) {
+        free(name);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    *param_variadic = grown_variadic;
+    grown_requires = realloc(*param_requires,
+                             (*param_count + 1) * sizeof(**param_requires));
+    if (!grown_requires) {
+        free(name);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    *param_requires = grown_requires;
+    (*params)[*param_count] = name;
+    (*param_variadic)[*param_count] = false;
+    (*param_requires)[*param_count] = require;
+    (*param_count)++;
+    return 0;
+}
+
 static char *doc_attributes_to_text(const DocAttributes *docs)
 {
     size_t length = 0;
@@ -514,6 +566,74 @@ static bool parse_method_assignment(const char *text, char **lhs, char **rhs,
     }
     if (op) {
         *op = parsed_op;
+    }
+    return true;
+}
+
+static bool parse_inline_param_optional_write(const char *text, bool *pointer,
+                                              bool *mutable_attr,
+                                              char **param_name,
+                                              FieldType *param_type, char **rhs)
+{
+    size_t consumed = 0;
+    const char *at;
+
+    *rhs = NULL;
+    if (!cg_parse_inline_param(text, &consumed, pointer, mutable_attr, param_name,
+                               param_type)) {
+        return false;
+    }
+    at = text + consumed;
+    while (*at == ' ') {
+        at++;
+    }
+    if (at[0] != '?' || at[1] != '=') {
+        free(*param_name);
+        cg_free_field_type(param_type);
+        *param_name = NULL;
+        return false;
+    }
+    at += 2;
+    while (*at == ' ') {
+        at++;
+    }
+    if (*at == '\0') {
+        free(*param_name);
+        cg_free_field_type(param_type);
+        *param_name = NULL;
+        return false;
+    }
+    *rhs = strdup(at);
+    if (!*rhs) {
+        free(*param_name);
+        cg_free_field_type(param_type);
+        *param_name = NULL;
+        return false;
+    }
+    return true;
+}
+
+static bool rhs_is_inline_param(const char *rhs, bool implicit_pointer,
+                                char **param_name, FieldType *param_type,
+                                bool *pointer, bool *mutable_attr)
+{
+    size_t consumed = 0;
+
+    if (!cg_parse_inline_param(rhs, &consumed, pointer, mutable_attr, param_name,
+                               param_type)) {
+        return false;
+    }
+    while (rhs[consumed] == ' ') {
+        consumed++;
+    }
+    if (rhs[consumed] != '\0') {
+        free(*param_name);
+        cg_free_field_type(param_type);
+        *param_name = NULL;
+        return false;
+    }
+    if (implicit_pointer && pointer && !*pointer) {
+        *pointer = true;
     }
     return true;
 }
@@ -1339,6 +1459,77 @@ static int process_function_param_line(
     if (param_is_meta) {
         function_output->has_meta_params = true;
     }
+    return 0;
+}
+
+static int process_inline_function_param(
+    FunctionOutput *function_output, char *param_name, FieldType *param_type,
+    bool param_pointer, bool param_mutable, Symbol *symbols,
+    size_t symbol_count, ModuleOutput *module, HeaderDeps **header_deps,
+    size_t *header_deps_count, size_t *header_deps_capacity, size_t line_number,
+    char *error, size_t error_size)
+{
+    char *param_c_type = NULL;
+    char **grown_types;
+    FieldType resolved_type = *param_type;
+
+    if (append_parsed_param(&function_output->params,
+                            &function_output->param_variadic,
+                            &function_output->param_requires,
+                            &function_output->param_count, param_name,
+                            PARAM_REQUIRE_ANY, line_number, error,
+                            error_size) != 0) {
+        return -1;
+    }
+    if (param_pointer) {
+        resolved_type.is_ptr = true;
+    }
+    if (cg_param_c_type((const char **) function_output->params,
+                        function_output->param_variadic,
+                        function_output->param_count - 1, resolved_type.name)) {
+        if (check_param_type_use(
+                (const char **) function_output->params,
+                function_output->param_requires,
+                function_output->param_count - 1, resolved_type.name,
+                line_number, error, error_size) != 0) {
+            rollback_param(function_output->params,
+                           &function_output->param_count);
+            return -1;
+        }
+        param_c_type = strdup(resolved_type.name);
+    } else {
+        param_c_type = resolve_c_field_type(
+            &resolved_type, symbols, symbol_count, module, header_deps,
+            header_deps_count, header_deps_capacity, line_number, error,
+            error_size);
+    }
+    if (!param_c_type) {
+        rollback_param(function_output->params, &function_output->param_count);
+        return -1;
+    }
+    if (!param_mutable) {
+        char *qualified = with_const_param_type(param_c_type);
+
+        free(param_c_type);
+        if (!qualified) {
+            rollback_param(function_output->params,
+                           &function_output->param_count);
+            cg_set_error(error, error_size, "out of memory");
+            return -1;
+        }
+        param_c_type = qualified;
+    }
+    grown_types = realloc(
+        function_output->param_types,
+        function_output->param_count * sizeof(*function_output->param_types));
+    if (!grown_types) {
+        free(param_c_type);
+        rollback_param(function_output->params, &function_output->param_count);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    function_output->param_types = grown_types;
+    function_output->param_types[function_output->param_count - 1] = param_c_type;
     return 0;
 }
 
@@ -3420,6 +3611,69 @@ int cgem_compile(FILE *input, const char *include_path,
                 char *statement = NULL;
                 bool assign_lhs_is_self_field = false;
                 MethodAssignOp assign_op = METHOD_ASSIGN_NORMAL;
+                char *inline_param_name = NULL;
+                FieldType inline_param_type = {0};
+                bool inline_pointer = false;
+                bool inline_mutable = false;
+
+                if (parse_inline_param_optional_write(
+                        line + indent, &inline_pointer, &inline_mutable,
+                        &inline_param_name, &inline_param_type, &assign_rhs)) {
+                    if (function_output.has_return) {
+                        free(assign_rhs);
+                        cg_free_field_type(&inline_param_type);
+                        cg_set_error(error, error_size,
+                                  "line %zu: statement after return",
+                                  line_number);
+                        goto done;
+                    }
+                    if (process_inline_function_param(
+                            &function_output, inline_param_name,
+                            &inline_param_type, inline_pointer, inline_mutable,
+                            symbols, symbol_count, &module, &header_deps,
+                            &header_deps_count, &header_deps_capacity,
+                            line_number, error, error_size) != 0) {
+                        free(assign_rhs);
+                        cg_free_field_type(&inline_param_type);
+                        goto done;
+                    }
+                    cg_free_field_type(&inline_param_type);
+                    inline_param_name =
+                        function_output.params[function_output.param_count - 1];
+                    c_lhs = transform_function_expression(
+                        inline_param_name, &function_output, symbols,
+                        symbol_count, &module, &header_deps, &header_deps_count,
+                        &header_deps_capacity, line_number, error, error_size);
+                    if (!c_lhs) {
+                        free(assign_rhs);
+                        goto done;
+                    }
+                    c_rhs = transform_function_expression(
+                        assign_rhs, &function_output, symbols, symbol_count,
+                        &module, &header_deps, &header_deps_count,
+                        &header_deps_capacity, line_number, error, error_size);
+                    free(assign_rhs);
+                    if (!c_rhs) {
+                        free(c_lhs);
+                        goto done;
+                    }
+                    statement = malloc(strlen(c_lhs) * 2 + strlen(c_rhs) + 12);
+                    if (!statement) {
+                        free(c_lhs);
+                        free(c_rhs);
+                        cg_set_error(error, error_size, "out of memory");
+                        goto done;
+                    }
+                    snprintf(statement, strlen(c_lhs) * 2 + strlen(c_rhs) + 12,
+                             "if (%s) *%s = %s", c_lhs, c_lhs, c_rhs);
+                    free(c_lhs);
+                    free(c_rhs);
+                    if (add_function_statement(&function_output, statement,
+                                                 error, error_size) != 0) {
+                        goto done;
+                    }
+                    continue;
+                }
 
                 if (parse_method_assignment(line + indent, &assign_lhs,
                                             &assign_rhs, &assign_op)) {
@@ -3430,6 +3684,36 @@ int cgem_compile(FILE *input, const char *include_path,
                                   "line %zu: statement after return",
                                   line_number);
                         goto done;
+                    }
+                    if ((assign_op == METHOD_ASSIGN_NORMAL ||
+                         assign_op == METHOD_ASSIGN_OPTIONAL_READ) &&
+                        rhs_is_inline_param(
+                            assign_rhs,
+                            assign_op == METHOD_ASSIGN_OPTIONAL_READ,
+                            &inline_param_name, &inline_param_type,
+                            &inline_pointer, &inline_mutable)) {
+                        if (process_inline_function_param(
+                                &function_output, inline_param_name,
+                                &inline_param_type, inline_pointer,
+                                inline_mutable, symbols, symbol_count, &module,
+                                &header_deps, &header_deps_count,
+                                &header_deps_capacity, line_number, error,
+                                error_size) != 0) {
+                            free(assign_lhs);
+                            free(assign_rhs);
+                            cg_free_field_type(&inline_param_type);
+                            goto done;
+                        }
+                        cg_free_field_type(&inline_param_type);
+                        free(assign_rhs);
+                        assign_rhs = strdup(
+                            function_output
+                                .params[function_output.param_count - 1]);
+                        if (!assign_rhs) {
+                            free(assign_lhs);
+                            cg_set_error(error, error_size, "out of memory");
+                            goto done;
+                        }
                     }
                     assign_lhs_is_self_field =
                         self_field_name_from_lvalue(assign_lhs) != NULL;

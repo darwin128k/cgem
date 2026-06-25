@@ -189,46 +189,26 @@ package lh:
 
             @mutable
             fn pack:
-                @pointer
-                param major as lh.version.major
-                @pointer
-                param minor as lh.version.minor
-                @pointer
-                param patch as lh.version.patch
-
-                self.major =? major
-                self.minor =? minor
-                self.patch =? patch
+                self.major =? param major as lh.version.major
+                self.minor =? param minor as lh.version.minor
+                self.patch =? param patch as lh.version.patch
 
             fn unpack:
-                @mutable
-                @pointer
-                param major as lh.version.major
-                @mutable
-                @pointer
-                param minor as lh.version.minor
-                @mutable
-                @pointer
-                param patch as lh.version.patch
-
-                major ?= self.major
-                minor ?= self.minor
-                patch ?= self.patch
+                @pointer @mutable param major as lh.version.major ?= self.major
+                @pointer @mutable param minor as lh.version.minor ?= self.minor
+                @pointer @mutable param patch as lh.version.patch ?= self.patch
 
             @mutable
             fn set_major:
-                param value as lh.version.major
-                self.major = value
+                self.major = param value as lh.version.major
 
             @mutable
             fn set_minor:
-                param value as lh.version.minor
-                self.minor = value
+                self.minor = param value as lh.version.minor
 
             @mutable
             fn set_patch:
-                param value as lh.version.patch
-                self.patch = value
+                self.patch = param value as lh.version.patch
 
             @mutable
             fn set:

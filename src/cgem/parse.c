@@ -428,6 +428,113 @@ fail:
     return false;
 }
 
+bool cg_parse_inline_param(const char *text, size_t *consumed, bool *pointer,
+                           bool *mutable_attr, char **name, FieldType *type)
+{
+    size_t at = 0;
+    size_t start;
+    bool is_meta = false;
+    bool is_variadic = false;
+
+    if (!text || !consumed || !name || !type) {
+        return false;
+    }
+    *name = NULL;
+    *type = (FieldType) {0};
+    if (pointer) {
+        *pointer = false;
+    }
+    if (mutable_attr) {
+        *mutable_attr = false;
+    }
+    for (;;) {
+        while (text[at] == ' ') {
+            at++;
+        }
+        if (text[at] == '\0') {
+            return false;
+        }
+        if (strncmp(text + at, "@pointer", 8) == 0 &&
+            (text[at + 8] == '\0' || text[at + 8] == ' ')) {
+            if (pointer) {
+                *pointer = true;
+            }
+            at += 8;
+            continue;
+        }
+        if (strncmp(text + at, "@mutable", 8) == 0 &&
+            (text[at + 8] == '\0' || text[at + 8] == ' ')) {
+            if (mutable_attr) {
+                *mutable_attr = true;
+            }
+            at += 8;
+            continue;
+        }
+        break;
+    }
+    while (text[at] == ' ') {
+        at++;
+    }
+    if (strncmp(text + at, "param", 5) != 0 || text[at + 5] != ' ') {
+        return false;
+    }
+    at += 5;
+    while (text[at] == ' ') {
+        at++;
+    }
+    if (!cg_name_start((unsigned char) text[at])) {
+        return false;
+    }
+    start = at++;
+    while (cg_name_char((unsigned char) text[at])) {
+        at++;
+    }
+    *name = cg_copy_text(text + start, at - start);
+    if (!*name) {
+        return false;
+    }
+    while (text[at] == ' ') {
+        at++;
+    }
+    if (text[at] == '\0') {
+        is_meta = true;
+        goto fail_inline;
+    }
+    if (strncmp(text + at, "as ", 3) != 0) {
+        goto fail_inline;
+    }
+    at += 3;
+    while (text[at] == ' ') {
+        at++;
+    }
+    if (text[at] == '.' && text[at + 1] == '.' && text[at + 2] == '.') {
+        is_meta = true;
+        is_variadic = true;
+        goto fail_inline;
+    }
+    if (strncmp(text + at, "type", 4) == 0 &&
+        !cg_name_char((unsigned char) text[at + 4])) {
+        goto fail_inline;
+    }
+    if (!cg_parse_as_field_type(text, &at, type)) {
+        goto fail_inline;
+    }
+    while (text[at] == ' ') {
+        at++;
+    }
+    if (is_meta || is_variadic) {
+        goto fail_inline;
+    }
+    *consumed = at;
+    return true;
+
+fail_inline:
+    free(*name);
+    cg_free_field_type(type);
+    *name = NULL;
+    return false;
+}
+
 bool cg_parse_require_attribute(const char *text, ParamRequire *require)
 {
     size_t at = 0;

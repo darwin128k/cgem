@@ -397,6 +397,8 @@ bool cg_parse_case(const char *text, char **name, char **value);
 bool cg_parse_simple_name(const char *text, const char *keyword, char **name);
 bool cg_parse_param(const char *text, char **name, FieldType *type,
                     bool *is_meta, bool *is_variadic);
+bool cg_parse_inline_param(const char *text, size_t *consumed, bool *pointer,
+                           bool *mutable_attr, char **name, FieldType *type);
 bool cg_parse_require_attribute(const char *text, ParamRequire *require);
 void cg_free_field_type(FieldType *type);
 bool cg_parse_field(const char *text, char **name, FieldType *type);

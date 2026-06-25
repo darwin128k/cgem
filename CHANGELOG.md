@@ -2,6 +2,39 @@
 
 All notable changes to CGEM are documented in this file.
 
+## 0.2.0 - 2026-06-25
+
+### Added
+
+- Live semantic analysis in the IDE: symbol table adoption from compile,
+  debounced re-analysis (~400 ms), and diagnostics without a full generate.
+- Lint rules E001–E003 for unknown references and related issues during
+  analysis.
+- `SymbolKind` and `type_dsl_name` on semantic symbols; completion uses the
+  symbol table.
+- Type-check pass (`typecheck.c`): E101–E102 for param, field, return, and
+  `let` type references against known symbols.
+- Workspace definition index (`semantic_nav.c`): go-to-definition, rename,
+  cross-file navigation, and merged workspace symbols.
+- IDE key bindings: `Ctrl+D` go to definition, `Ctrl+P` rename, `Ctrl+N` find
+  next; `F1` help, `F2`–`F6` menus; `Ctrl+O` open file.
+- Inline `param` in struct method assignments — declare a typed parameter at
+  the point of use (`self.field = param …`, `self.field =? param …`,
+  `@pointer @mutable param … ?= rhs`); lowers to the same C signature and body
+  as separate `param` lines.
+
+### Changed
+
+- `lh.version` `pack`, `unpack`, and `set_*` in `main.cgem` use inline `param`
+  syntax; `unpack` writes through optional out-pointers with `?= self.field`.
+- README documents CGEM direction, inline `param`, and updated IDE shortcuts.
+
+### Fixed
+
+- Segfault when optional parser out-parameters were `NULL` (`cg_parse_case`,
+  `cg_parse_type`, `cg_parse_let`) during IDE analysis.
+- `semantic_nav.c` definition indexing after a corrupted `cg_parse_fn` guard.
+
 ## 0.1.0 - 2026-06-24
 
 ### Added

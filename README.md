@@ -5,9 +5,39 @@
 
 ## About
 
-CGEM is a small DOS-style terminal editor written in C. It runs on Linux
-and Windows 10/11 terminals. Windows XP is supported through the legacy
-Console API fallback when built with MinGW.
+CGEM is a DSL that transpiles to C, bundled with a small DOS-style terminal
+IDE written in C. It runs on Linux and Windows 10/11 terminals. Windows XP
+is supported through the legacy Console API fallback when built with MinGW.
+
+## Direction
+
+CGEM is not trying to replace C, fix memory safety, or hide the platform from
+you. It is not Rust, not Zig, and not a framework on top of C — the developer
+stays in charge; CGEM only makes some chores cheaper.
+
+The goal is **fast, immediate description of C entities**: types, macros,
+modules, and functions — with names, scopes, and structure kept in the DSL
+instead of scattered across headers and implementation files.
+
+That does not mean a dumb text transformer. CGEM is a real language with its
+own semantics: symbol tables, scoped paths, enum constant evaluation, template
+field macros, IDE analysis, and diagnostics. The "brains" live where they are
+cheap — naming, lookup, and codegen — not in a runtime or borrow checker.
+
+CGEM does not chase novelty for its own sake. Indentation replaces braces
+because declarations read better when structure is visible. Parameters can live
+**inside** the declaration they belong to (`field x as param T`, inline
+`param` at the point of use) because a long-standing pain is not only writing
+C, but **writing declarations while you are still shaping the body**.
+
+Function parameters illustrate this. A linear `param` block at the top of `fn`
+is the familiar style. A `self.method:` call block declares parameters where
+the call happens. Inline `param` in an assignment (`self.major =? param major as …`)
+declares a parameter exactly where it is consumed. All three lower to the same
+C signature; the DSL only changes *when* you decide the shape.
+
+C remains the engine. CGEM is the descriptive layer: describe the entity once,
+in context, and generate ordinary C you can read, diff, and ship.
 
 ## Build
 
@@ -142,7 +172,9 @@ opens or creates its `main.cgem`. Without `--input`, the IDE opens
 - `Shift+Tab`: unindent the current line or selection by one block level
   (4 spaces); also available as **Edit → Decrease**
 - `Ctrl+S`: save
+- `Ctrl+O`: open a file
 - `Ctrl+B`: generate C output (compile will reuse this key when added)
+- `F1`: help
 - `F2`–`F6`: open `File`, `Edit`, `Build`, `Options`, and `Help` menus
 - `F8`, `F9`, `F11`, and `F12` are free for custom bindings in
   `keymap/default.keymap` or `.cgem/keymap`; do **not** bind `F10` — on Windows
@@ -150,13 +182,14 @@ opens or creates its `main.cgem`. Without `--input`, the IDE opens
   editor (rebind at your own risk; Linux terminals are usually fine)
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`: copy, cut, paste, select all
 - `Ctrl+Z`, `Ctrl+Y`: undo and redo edits
-- `Ctrl+F`, `F7`: find text and find the next match
+- `Ctrl+F`, `F7`: find text; `Ctrl+N`: find the next match
 - `Ctrl+G`: go to a line number
+- `Ctrl+D`: go to definition
+- `Ctrl+P`: rename symbol
 - Format is available from **Edit → Format** or `Ctrl+K`
 - **Edit → Increase** (`Tab`) and **Edit → Decrease** (`Shift+Tab`) move lines
   between DSL section levels (4-space steps); the **Edit** menu groups commands
   under section headers (History, Clipboard, Section, Search).
-- `Ctrl+O`: reserved for a future open-file action
 - Mouse wheel: scroll the buffer
 - `Ctrl+Q`: quit
 
@@ -720,6 +753,28 @@ fn init:
 `@initializer` is a flag attribute with no arguments. A struct may have only
 one initializer function.
 
+Struct methods also accept **inline `param`** in assignments. A typed parameter
+is declared at the point of use and added to the enclosing function signature:
+
+```text
+@mutable
+fn pack:
+    self.major =? param major as lh.version.major
+
+fn unpack:
+    @pointer @mutable param major as lh.version.major ?= self.major
+
+@mutable
+fn set_major:
+    self.major = param value as lh.version.major
+```
+
+`=?` implies `@pointer` on the parameter when it is omitted. Attributes such as
+`@pointer` and `@mutable` attach to the `param` clause, not to a separate line
+above the statement. This lowers to the same C as separate `param` lines
+followed by the assignment. Standalone `param` lines and `self.method:` call
+blocks remain supported.
+
 ### Operators
 
 CGEM borrows a few PHP-style operators and adds pointer-specific assignment
@@ -762,22 +817,23 @@ return name ?: "default"
 is not `NULL`, assigns its dereferenced value to the left-hand side:
 
 ```text
-self.major =? major
+self.major =? param major as lh.version.major
 ```
 
-lowers to `if (major) self->major = *major`.
+lowers to `if (major) self->major = *major`. The inline `param` form adds
+`major` to the function signature; `=?` implies `@pointer` when omitted.
 
 **`?=` — optional pointer write (CGEM-specific).** When the left-hand pointer
 is not `NULL`, writes the right-hand value through it:
 
 ```text
-major ?= self.major
+@pointer @mutable param major as lh.version.major ?= self.major
 ```
 
 lowers to `if (major) *major = self->major`.
 
-Use `=?` and `?=` for optional `@pointer` parameters in struct methods,
-for example when packing or unpacking through caller-provided pointers.
+Use `=?` and `?=` for optional out-parameters in struct methods, for example
+when packing or unpacking through caller-provided pointers.
 
 Template parameters generate reusable structure field macros:
 

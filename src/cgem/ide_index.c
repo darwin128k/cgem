@@ -124,6 +124,38 @@ static void index_add(IdeIndex *index, const char *name)
     index->entries[index->count++] = copy;
 }
 
+static void index_add_hint_entry(IdeIndex *index, const char *name)
+{
+    char *copy;
+    size_t next;
+
+    if (!index || !name || !name[0]) {
+        return;
+    }
+    for (size_t i = 0; i < index->count; i++) {
+        if (strcmp(index->entries[i], name) == 0) {
+            return;
+        }
+    }
+    if (index->count == index->capacity) {
+        next = index->capacity ? index->capacity * 2 : 32;
+        {
+            char **grown = realloc(index->entries, next * sizeof(*index->entries));
+
+            if (!grown) {
+                return;
+            }
+            index->entries = grown;
+            index->capacity = next;
+        }
+    }
+    copy = strdup(name);
+    if (!copy) {
+        return;
+    }
+    index->entries[index->count++] = copy;
+}
+
 static void index_add_terminal(IdeIndex *index, const char *path)
 {
     char *copy;
@@ -257,45 +289,49 @@ static void index_add_dsl_symbol(IdeIndex *index, Block *blocks, size_t count,
     char *dsl_name;
 
     (void) decl_name;
-    if (index_hints_only) {
-        return;
-    }
     if (count == 0) {
         return;
     }
     dsl_name = cg_build_dsl_name(blocks, count - 1, blocks[count - 1].name);
-    if (dsl_name) {
-        index_add(index, dsl_name);
-        free(dsl_name);
+    if (!dsl_name) {
+        return;
     }
+    if (index_hints_only) {
+        index_add_hint_entry(index, dsl_name);
+        free(dsl_name);
+        return;
+    }
+    index_add(index, dsl_name);
+    free(dsl_name);
 }
 
 static void index_add_field_type(IdeIndex *index, const FieldType *type)
 {
-    if (index_hints_only) {
+    if (!type || !type->name) {
         return;
     }
-    if (type && type->name) {
-        index_add(index, type->name);
+    if (index_hints_only) {
+        index_add_hint_entry(index, type->name);
+        return;
     }
+    index_add(index, type->name);
 }
 
 static void index_add_reference(IdeIndex *index, const char *reference)
 {
-    if (index_hints_only) {
+    if (!reference) {
         return;
     }
-    if (reference) {
-        index_add(index, reference);
+    if (index_hints_only) {
+        index_add_hint_entry(index, reference);
+        return;
     }
+    index_add(index, reference);
 }
 
 static void index_scan_dotted_token(IdeIndex *index, const char *text,
                                     size_t length)
 {
-    if (index_hints_only) {
-        return;
-    }
     size_t at = 0;
 
     while (at < length) {
@@ -321,7 +357,11 @@ static void index_scan_dotted_token(IdeIndex *index, const char *text,
             char *token = cg_copy_text(text + start, at - start);
 
             if (token) {
-                index_add(index, token);
+                if (index_hints_only) {
+                    index_add_hint_entry(index, token);
+                } else {
+                    index_add(index, token);
+                }
                 free(token);
             }
         }
@@ -539,6 +579,10 @@ void ide_index_clear_hints(IdeIndex *index)
     if (!index) {
         return;
     }
+    for (size_t i = 0; i < index->count; i++) {
+        free(index->entries[i]);
+    }
+    free(index->entries);
     for (size_t i = 0; i < index->terminal_count; i++) {
         free(index->terminals[i]);
     }
@@ -553,6 +597,9 @@ void ide_index_clear_hints(IdeIndex *index)
         free(index->fn_hints[i].hint);
     }
     free(index->fn_hints);
+    index->entries = NULL;
+    index->count = 0;
+    index->capacity = 0;
     index->terminals = NULL;
     index->terminal_count = 0;
     index->terminal_capacity = 0;
@@ -709,6 +756,7 @@ static bool fn_collector_consume(FnHintCollector *collector, IdeIndex *index,
                        &is_variadic)) {
         if (!is_meta && field_type.name) {
             fn_collector_append_param(collector, param_name, field_type.name);
+            index_add_field_type(index, &field_type);
         }
         free(param_name);
         cg_free_field_type(&field_type);

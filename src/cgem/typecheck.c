@@ -134,29 +134,14 @@ static bool param_names_add(ParamNames *params, const char *name)
     return true;
 }
 
-static bool param_names_has(const ParamNames *params, const char *name)
-{
-    for (size_t i = 0; i < params->count; i++) {
-        if (strcmp(params->names[i], name) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static void check_field_type(const CgemSemantic *semantic, Block *blocks,
-                             size_t block_count, const ParamNames *params,
-                             const FieldType *type, size_t line_number,
-                             DiagnosticList *diagnostics)
+                             size_t block_count, const FieldType *type,
+                             size_t line_number, DiagnosticList *diagnostics)
 {
     if (!type || !type->name) {
         return;
     }
     if (type->is_param_ref) {
-        if (!params || !param_names_has(params, type->name)) {
-            cg_diagnostic_push(diagnostics, DIAG_ERROR, line_number, 1, "E102",
-                               "unknown struct parameter: %s", type->name);
-        }
         return;
     }
     check_type_ref(semantic, blocks, block_count, type, line_number, 1,
@@ -306,8 +291,8 @@ void cgem_typecheck_rows(const CgemSemantic *semantic,
                 continue;
             }
             if (in_struct && cg_parse_field(text, &name, &field_type)) {
-                check_field_type(semantic, blocks, block_count, &struct_params,
-                                 &field_type, y + 1, diagnostics);
+                check_field_type(semantic, blocks, block_count, &field_type,
+                                 y + 1, diagnostics);
                 free(name);
                 cg_free_field_type(&field_type);
                 continue;

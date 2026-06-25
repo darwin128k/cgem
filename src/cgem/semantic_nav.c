@@ -604,6 +604,8 @@ static void free_file_rows(IdeIndexRow *rows, size_t row_count)
 }
 
 static int analyze_file_into_semantic(const char *path, const char *compiler,
+                                      const char *include_path,
+                                      const char *source_path,
                                       CgemSemantic *semantic)
 {
     FILE *input;
@@ -622,9 +624,15 @@ static int analyze_file_into_semantic(const char *path, const char *compiler,
         free_file_rows(rows, row_count);
         return -1;
     }
+    const char *include_dir =
+        include_path && include_path[0] ? include_path : ".";
+    const char *source_dir =
+        source_path && source_path[0] ? source_path : ".";
+
     cgem_semantic_init(&file_semantic);
     cg_diagnostic_init(&diagnostics);
-    result = cgem_analyze(input, compiler, &diagnostics, &file_semantic);
+    result = cgem_analyze(input, compiler, include_dir, source_dir,
+                          &diagnostics, &file_semantic);
     fclose(input);
     if (result != 0) {
         cgem_semantic_free(&file_semantic);
@@ -662,6 +670,8 @@ static int analyze_file_into_semantic(const char *path, const char *compiler,
 
 void cgem_semantic_load_workspace(const char *workspace_root,
                                   const char *skip_file, const char *compiler,
+                                  const char *include_path,
+                                  const char *source_path,
                                   CgemSemantic *semantic)
 {
     CgemFileList files = {0};
@@ -675,7 +685,8 @@ void cgem_semantic_load_workspace(const char *workspace_root,
         if (skip_file && skip_file[0] && strcmp(files.paths[i], skip_file) == 0) {
             continue;
         }
-        analyze_file_into_semantic(files.paths[i], compiler, semantic);
+        analyze_file_into_semantic(files.paths[i], compiler, include_path,
+                                   source_path, semantic);
     }
     file_list_free(&files);
 }

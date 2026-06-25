@@ -154,7 +154,7 @@ void cgem_semantic_adopt_symbols(CgemSemantic *semantic, Symbol *symbols,
     for (i = 0; i < symbol_count; i++) {
         CgemSemanticSymbol entry;
 
-        if (symbols[i].is_internal || !symbols[i].dsl_name) {
+        if (!symbols[i].dsl_name) {
             continue;
         }
         entry.dsl_name = symbols[i].dsl_name;
@@ -494,6 +494,21 @@ static bool is_dsl_keyword(const char *name, size_t length)
     return false;
 }
 
+static bool is_compiler_builtin_reference(const char *name, size_t length)
+{
+    static const char *builtins[] = {"c.initializer", "c.ptr.of", NULL};
+
+    for (size_t i = 0; builtins[i]; i++) {
+        size_t builtin_length = strlen(builtins[i]);
+
+        if (builtin_length == length &&
+            memcmp(builtins[i], name, length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool line_in_string(const char *line, size_t length, size_t at)
 {
     bool in_string = false;
@@ -550,6 +565,7 @@ static void lint_unknown_references(const CgemSemantic *semantic,
                 size_t ref_length = at - start;
 
                 if (!is_dsl_keyword(line + start, ref_length) &&
+                    !is_compiler_builtin_reference(line + start, ref_length) &&
                     !cgem_semantic_reference_known(semantic, line + start,
                                                    ref_length, false)) {
                     cg_diagnostic_push(
@@ -820,6 +836,8 @@ static void semantic_lint_extras(const CgemSemantic *semantic,
 
 int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
                                const char *compiler,
+                               const char *include_path,
+                               const char *source_path,
                                const char *workspace_root,
                                const char *current_file,
                                DiagnosticList *diagnostics,
@@ -827,6 +845,10 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
 {
     FILE *input;
     int result;
+    const char *include_dir =
+        include_path && include_path[0] ? include_path : ".";
+    const char *source_dir =
+        source_path && source_path[0] ? source_path : ".";
 
     if (!rows || !compiler || !diagnostics || !semantic) {
         return -1;
@@ -835,7 +857,7 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
     cg_diagnostic_clear(diagnostics);
     if (workspace_root && workspace_root[0]) {
         cgem_semantic_load_workspace(workspace_root, current_file, compiler,
-                                     semantic);
+                                     include_dir, source_dir, semantic);
     }
 
     input = tmpfile();
@@ -853,7 +875,8 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
         fclose(input);
         return -1;
     }
-    result = cgem_analyze(input, compiler, diagnostics, semantic);
+    result = cgem_analyze(input, compiler, include_dir, source_dir, diagnostics,
+                          semantic);
     fclose(input);
     if (result != 0) {
         return result;

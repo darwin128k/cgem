@@ -46,12 +46,15 @@ void cgem_semantic_clear(CgemSemantic *semantic);
 
 int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
                                const char *compiler,
+                               const char *include_path,
+                               const char *source_path,
                                const char *workspace_root,
                                const char *current_file,
                                DiagnosticList *diagnostics,
                                CgemSemantic *semantic);
 
 int cgem_analyze(FILE *input, const char *compiler,
+                 const char *include_path, const char *source_path,
                  DiagnosticList *diagnostics, CgemSemantic *semantic);
 
 bool cgem_semantic_scope_path(const IdeIndexRow *rows, size_t row_count,
@@ -95,6 +98,8 @@ void cgem_semantic_index_definitions(const IdeIndexRow *rows,
 
 void cgem_semantic_load_workspace(const char *workspace_root,
                                   const char *skip_file, const char *compiler,
+                                  const char *include_path,
+                                  const char *source_path,
                                   CgemSemantic *semantic);
 
 #endif

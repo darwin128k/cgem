@@ -664,7 +664,7 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
             result = -1;
             goto done;
         }
-        if (!output->emit) {
+        if (!output->emit || cg_compile_analyze_only) {
             goto done;
         }
         if (cg_ensure_module_header(output->module, error, error_size) != 0) {

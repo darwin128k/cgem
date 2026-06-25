@@ -4894,7 +4894,7 @@ int cgem_compile(FILE *input, const char *include_path,
                         free(name);
                         goto done;
                     }
-                    if (struct_emit) {
+                    if (struct_emit && !cg_compile_analyze_only) {
                         if (cg_ensure_module_header(&module, error,
                                                  error_size) != 0) {
                             free(symbol);
@@ -6321,19 +6321,24 @@ done:
 }
 
 int cgem_analyze(FILE *input, const char *compiler,
+                 const char *include_path, const char *source_path,
                  DiagnosticList *diagnostics_out, CgemSemantic *semantic_out)
 {
     char error[512];
     char warning[1024];
     int result;
+    const char *include_dir =
+        include_path && include_path[0] ? include_path : ".";
+    const char *source_dir =
+        source_path && source_path[0] ? source_path : ".";
 
     if (!input || !compiler || !diagnostics_out || !semantic_out) {
         return -1;
     }
     cg_compile_analyze_only = true;
     cg_analyze_semantic_out = semantic_out;
-    result = cgem_compile(input, ".", ".", NULL, compiler, false, warning,
-                          sizeof(warning), error, sizeof(error),
+    result = cgem_compile(input, include_dir, source_dir, NULL, compiler, false,
+                          warning, sizeof(warning), error, sizeof(error),
                           diagnostics_out);
     cg_compile_analyze_only = false;
     cg_analyze_semantic_out = NULL;

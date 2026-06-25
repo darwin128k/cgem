@@ -398,8 +398,9 @@ static void ensure_semantic_fresh(bool force)
     if (!rows && row_count > 0) {
         return;
     }
-    cgem_semantic_analyze_rows(rows, row_count, editor.compiler, workspace,
-                               current_file, &editor.diagnostics,
+    cgem_semantic_analyze_rows(rows, row_count, editor.compiler,
+                               editor.include_path, editor.source_path,
+                               workspace, current_file, &editor.diagnostics,
                                &editor.semantic);
     free(rows);
     editor.semantic_dirty = false;
@@ -3766,6 +3767,7 @@ static bool row_word_at(const Row *row, size_t at, const char *word)
 typedef enum {
     BODY_HL_KEYWORD,
     BODY_HL_NAME,
+    BODY_HL_TYPE,
     BODY_HL_BUILTIN,
     BODY_HL_OPERATOR
 } BodyHighlightKind;
@@ -3789,14 +3791,77 @@ static void body_highlight_add(BodyHighlightSpan *spans, size_t *count,
     (*count)++;
 }
 
-static bool body_highlight_kind_at(const BodyHighlightSpan *spans, size_t count,
-                                   size_t at, BodyHighlightKind *kind)
+static bool body_highlight_at(const BodyHighlightSpan *spans, size_t count,
+                              size_t at, BodyHighlightKind *kind,
+                              size_t *span_start, size_t *span_end)
 {
     for (size_t i = 0; i < count; i++) {
         if (at >= spans[i].start && at < spans[i].end) {
             if (kind) {
                 *kind = spans[i].kind;
             }
+            if (span_start) {
+                *span_start = spans[i].start;
+            }
+            if (span_end) {
+                *span_end = spans[i].end;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool type_reference_highlightable(const Row *row,
+                                         const CgemSemantic *semantic,
+                                         size_t file_row, size_t start,
+                                         size_t end)
+{
+    char reference[256];
+    char qualified[256];
+    char scope[256];
+    IdeIndexRow rows[512];
+    size_t row_count = editor.row_count;
+
+    if (!row || !semantic || end <= start || end - start >= sizeof(reference)) {
+        return false;
+    }
+    memcpy(reference, row->data + start, end - start);
+    reference[end - start] = '\0';
+    if (cgem_semantic_reference_known(semantic, reference, end - start, false)) {
+        return true;
+    }
+    {
+        const CgemSemanticSymbol *symbol = cgem_semantic_find(semantic, reference);
+
+        if (symbol && cgem_semantic_symbol_is_type(symbol)) {
+            return true;
+        }
+    }
+    if (row_count == 0 || row_count > sizeof(rows) / sizeof(rows[0]) ||
+        file_row >= row_count) {
+        return false;
+    }
+    for (size_t i = 0; i < row_count; i++) {
+        rows[i].data = editor.rows[i].data;
+        rows[i].length = editor.rows[i].length;
+    }
+    if (!cgem_semantic_scope_path(rows, row_count, file_row, scope,
+                                   sizeof(scope))) {
+        return false;
+    }
+    if (!cgem_semantic_qualify_reference(reference, scope, semantic, qualified,
+                                         sizeof(qualified))) {
+        return false;
+    }
+    if (cgem_semantic_reference_known(semantic, qualified, strlen(qualified),
+                                      false)) {
+        return true;
+    }
+    {
+        const CgemSemanticSymbol *symbol = cgem_semantic_find(semantic, qualified);
+
+        if (symbol && cgem_semantic_symbol_is_type(symbol)) {
             return true;
         }
     }
@@ -3903,7 +3968,7 @@ static void scan_param_as_clause(const Row *row, size_t line_first,
                     row->data[at] == '.')) {
                 at++;
             }
-            body_highlight_add(spans, count, type_start, at, BODY_HL_NAME);
+            body_highlight_add(spans, count, type_start, at, BODY_HL_TYPE);
         }
     }
 }
@@ -3958,7 +4023,7 @@ static void scan_inline_param_clauses(const Row *row, size_t line_first,
                         row->data[at] == '.')) {
                     at++;
                 }
-                body_highlight_add(spans, count, type_start, at, BODY_HL_NAME);
+                body_highlight_add(spans, count, type_start, at, BODY_HL_TYPE);
             }
         }
     }
@@ -4348,15 +4413,25 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                 color = keyword_theme;
             } else {
                 BodyHighlightKind body_kind;
+                size_t body_span_start = 0;
+                size_t body_span_end = 0;
 
-                if (body_highlight_kind_at(body_spans, body_span_count, at,
-                                           &body_kind)) {
+                if (body_highlight_at(body_spans, body_span_count, at, &body_kind,
+                                      &body_span_start, &body_span_end)) {
                     switch (body_kind) {
                     case BODY_HL_KEYWORD:
                         color = keyword_theme;
                         break;
                     case BODY_HL_NAME:
                         color = name_theme;
+                        break;
+                    case BODY_HL_TYPE:
+                        if (type_reference_highlightable(row, &editor.semantic,
+                                                         file_row,
+                                                         body_span_start,
+                                                         body_span_end)) {
+                            color = name_theme;
+                        }
                         break;
                     case BODY_HL_BUILTIN:
                         color = builtin_theme;
@@ -4374,7 +4449,11 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                         ? keyword_theme : name_theme;
                 } else if (type_end > type_start &&
                            at >= type_start && at < type_end) {
-                    color = name_theme;
+                    if (type_reference_highlightable(row, &editor.semantic,
+                                                     file_row, type_start,
+                                                     type_end)) {
+                        color = name_theme;
+                    }
                 } else if (at >= builtin_start && at < builtin_end) {
                     color = builtin_theme;
                 } else if (at >= function_start && at < function_end) {
@@ -4748,9 +4827,6 @@ static bool save_file(void)
         return false;
     }
     format_editor_buffer();
-    editor.semantic_dirty = true;
-    editor.semantic_force = true;
-    ensure_semantic_fresh(true);
     output = fopen(editor.filename, "wb");
     if (!output) {
         set_message("Save failed: %s", strerror(errno));
@@ -4779,16 +4855,32 @@ static bool save_file(void)
     return true;
 }
 
+static void diagnostics_copy(DiagnosticList *dest, const DiagnosticList *src)
+{
+    cg_diagnostic_clear(dest);
+    if (!src) {
+        return;
+    }
+    for (size_t i = 0; i < src->count; i++) {
+        const Diagnostic *item = &src->items[i];
+
+        cg_diagnostic_push(dest, item->severity, item->line, item->column,
+                           item->code, "%s", item->message);
+    }
+}
+
 static bool generate_output(void)
 {
     FILE *input = tmpfile();
     char error[512];
     char warning[1024];
+    DiagnosticList compile_diagnostics;
 
     if (!input) {
         set_message("Generate failed: %s", strerror(errno));
         return false;
     }
+    cg_diagnostic_init(&compile_diagnostics);
     format_editor_buffer();
     for (size_t i = 0; i < editor.row_count; i++) {
         if (fwrite(editor.rows[i].data, 1, editor.rows[i].length, input) !=
@@ -4810,15 +4902,17 @@ static bool generate_output(void)
                      editor.compiler, true,
                      warning, sizeof(warning),
                      error, sizeof(error),
-                     &editor.diagnostics) != 0) {
+                     &compile_diagnostics) != 0) {
+        diagnostics_copy(&editor.diagnostics, &compile_diagnostics);
         focus_first_diagnostic(DIAG_ERROR);
         set_message("Generate failed: %s", error);
         fclose(input);
+        cg_diagnostic_free(&compile_diagnostics);
         return false;
     }
     fclose(input);
+    cg_diagnostic_free(&compile_diagnostics);
     if (warning[0]) {
-        focus_first_diagnostic(DIAG_WARNING);
         set_message("Generated with warning: %s", warning);
     } else {
         set_message("Generated include: %s  source: %s",
@@ -5329,6 +5423,7 @@ int ide_run(const char *input_path, const char *include_path,
                 editor.include_path, editor.source_path);
 
     platform_terminal_init();
+    ensure_semantic_fresh(true);
     while (true) {
         refresh_screen();
         if (!process_key()) {

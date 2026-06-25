@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 typedef enum {
@@ -24,9 +25,19 @@ typedef struct {
 } CgemSemanticSymbol;
 
 typedef struct {
+    char *dsl_name;
+    size_t line;
+    size_t column;
+    char *file_path;
+} CgemSemanticDefinition;
+
+typedef struct {
     CgemSemanticSymbol *symbols;
     size_t symbol_count;
+    CgemSemanticDefinition *definitions;
+    size_t definition_count;
     IdeIndex hints;
+    uint64_t analyzed_revision;
 } CgemSemantic;
 
 void cgem_semantic_init(CgemSemantic *semantic);
@@ -35,6 +46,8 @@ void cgem_semantic_clear(CgemSemantic *semantic);
 
 int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
                                const char *compiler,
+                               const char *workspace_root,
+                               const char *current_file,
                                DiagnosticList *diagnostics,
                                CgemSemantic *semantic);
 
@@ -60,5 +73,28 @@ bool cgem_semantic_symbol_is_type(const CgemSemanticSymbol *symbol);
 
 const CgemSemanticSymbol *cgem_semantic_find(const CgemSemantic *semantic,
                                                const char *name);
+
+bool cgem_semantic_reference_at(const char *line, size_t length,
+                                size_t cursor, char *reference,
+                                size_t reference_size, size_t *start_column);
+
+bool cgem_semantic_qualify_reference(const char *reference,
+                                     const char *scope,
+                                     const CgemSemantic *semantic, char *out,
+                                     size_t out_size);
+
+bool cgem_semantic_find_definition(const CgemSemantic *semantic,
+                                   const char *qualified_reference,
+                                   size_t *line, size_t *column,
+                                   char *file_path, size_t file_path_size);
+
+void cgem_semantic_index_definitions(const IdeIndexRow *rows,
+                                     size_t row_count,
+                                     const char *current_file,
+                                     CgemSemantic *semantic);
+
+void cgem_semantic_load_workspace(const char *workspace_root,
+                                  const char *skip_file, const char *compiler,
+                                  CgemSemantic *semantic);
 
 #endif

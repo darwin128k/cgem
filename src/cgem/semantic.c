@@ -39,6 +39,53 @@ static void free_symbols(CgemSemantic *semantic)
     semantic->symbol_count = 0;
 }
 
+static void free_definitions(CgemSemantic *semantic)
+{
+    size_t i;
+
+    if (!semantic) {
+        return;
+    }
+    for (i = 0; i < semantic->definition_count; i++) {
+        free(semantic->definitions[i].dsl_name);
+        free(semantic->definitions[i].file_path);
+    }
+    free(semantic->definitions);
+    semantic->definitions = NULL;
+    semantic->definition_count = 0;
+}
+
+static int merge_adopted_symbol(CgemSemantic *semantic,
+                                CgemSemanticSymbol *symbol)
+{
+    CgemSemanticSymbol *grown;
+    size_t i;
+
+    if (!symbol || !symbol->dsl_name) {
+        return 0;
+    }
+    for (i = 0; i < semantic->symbol_count; i++) {
+        if (semantic->symbols[i].dsl_name &&
+            strcmp(semantic->symbols[i].dsl_name, symbol->dsl_name) == 0) {
+            free(semantic->symbols[i].type_dsl_name);
+            semantic->symbols[i].kind = symbol->kind;
+            semantic->symbols[i].is_define = symbol->is_define;
+            semantic->symbols[i].type_dsl_name = symbol->type_dsl_name;
+            symbol->type_dsl_name = NULL;
+            free(symbol->dsl_name);
+            return 0;
+        }
+    }
+    grown = realloc(semantic->symbols,
+                    (semantic->symbol_count + 1) * sizeof(*semantic->symbols));
+    if (!grown) {
+        return -1;
+    }
+    semantic->symbols = grown;
+    semantic->symbols[semantic->symbol_count++] = *symbol;
+    return 0;
+}
+
 static CgemSymbolKind map_symbol_kind(SymbolKind kind)
 {
     switch (kind) {
@@ -81,7 +128,9 @@ void cgem_semantic_clear(CgemSemantic *semantic)
         return;
     }
     free_symbols(semantic);
+    free_definitions(semantic);
     ide_index_clear_hints(&semantic->hints);
+    semantic->analyzed_revision = 0;
 }
 
 void cgem_semantic_free(CgemSemantic *semantic)
@@ -97,48 +146,29 @@ void cgem_semantic_free(CgemSemantic *semantic)
 void cgem_semantic_adopt_symbols(CgemSemantic *semantic, Symbol *symbols,
                                  size_t symbol_count)
 {
-    CgemSemanticSymbol *grown;
+    size_t i;
 
     if (!semantic) {
         return;
     }
-    free_symbols(semantic);
-    if (symbol_count == 0) {
-        return;
-    }
-    grown = calloc(symbol_count, sizeof(*grown));
-    if (!grown) {
-        return;
-    }
-    for (size_t i = 0; i < symbol_count; i++) {
+    for (i = 0; i < symbol_count; i++) {
+        CgemSemanticSymbol entry;
+
         if (symbols[i].is_internal || !symbols[i].dsl_name) {
             continue;
         }
-        grown[semantic->symbol_count].dsl_name = symbols[i].dsl_name;
-        grown[semantic->symbol_count].kind = map_symbol_kind(symbols[i].kind);
-        grown[semantic->symbol_count].is_define = symbols[i].is_define;
-        if (symbols[i].type_dsl_name) {
-            grown[semantic->symbol_count].type_dsl_name =
-                strdup(symbols[i].type_dsl_name);
-        } else {
-            grown[semantic->symbol_count].type_dsl_name = NULL;
-        }
+        entry.dsl_name = symbols[i].dsl_name;
+        entry.kind = map_symbol_kind(symbols[i].kind);
+        entry.is_define = symbols[i].is_define;
+        entry.type_dsl_name = symbols[i].type_dsl_name ?
+                                  strdup(symbols[i].type_dsl_name) : NULL;
         symbols[i].dsl_name = NULL;
-        semantic->symbol_count++;
-    }
-    if (semantic->symbol_count == 0) {
-        free(grown);
-        return;
-    }
-    if (semantic->symbol_count < symbol_count) {
-        CgemSemanticSymbol *trimmed =
-            realloc(grown, semantic->symbol_count * sizeof(*trimmed));
-
-        if (trimmed) {
-            grown = trimmed;
+        symbols[i].type_dsl_name = NULL;
+        if (merge_adopted_symbol(semantic, &entry) != 0) {
+            free(entry.dsl_name);
+            free(entry.type_dsl_name);
         }
     }
-    semantic->symbols = grown;
 }
 
 static bool symbol_name_known(const CgemSemantic *semantic, const char *name,
@@ -803,6 +833,8 @@ static void semantic_lint_extras(const CgemSemantic *semantic,
 
 int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
                                const char *compiler,
+                               const char *workspace_root,
+                               const char *current_file,
                                DiagnosticList *diagnostics,
                                CgemSemantic *semantic)
 {
@@ -814,6 +846,10 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
     }
     cgem_semantic_clear(semantic);
     cg_diagnostic_clear(diagnostics);
+    if (workspace_root && workspace_root[0]) {
+        cgem_semantic_load_workspace(workspace_root, current_file, compiler,
+                                     semantic);
+    }
 
     input = tmpfile();
     if (!input) {
@@ -835,6 +871,7 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
     if (result != 0) {
         return result;
     }
+    cgem_semantic_index_definitions(rows, row_count, current_file, semantic);
     ide_index_collect_hints(&semantic->hints, rows, row_count);
     cgem_typecheck_rows(semantic, rows, row_count, diagnostics);
     semantic_lint_extras(semantic, rows, row_count, diagnostics);

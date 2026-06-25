@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wchar.h>
 
 #include "cgem/common.h"
@@ -67,6 +68,7 @@ typedef enum {
     IDE_PROMPT_SAVE_AS,
     IDE_PROMPT_FIND,
     IDE_PROMPT_GOTO_LINE,
+    IDE_PROMPT_RENAME,
     IDE_PROMPT_THEME
 } IdePrompt;
 
@@ -99,6 +101,12 @@ typedef struct {
     DiagnosticList diagnostics;
     CgemSemantic semantic;
     bool semantic_dirty;
+    bool semantic_force;
+    clock_t semantic_debounce_until;
+    bool pending_goto;
+    size_t pending_goto_line;
+    size_t pending_goto_column;
+    char rename_qualified[256];
     bool follow_cursor;
     IdeMenu menu;
     EditorHistory history;
@@ -131,10 +139,19 @@ static size_t leading_spaces(const Row *row);
 static bool cursor_inside_string(const Row *row, size_t cursor_x);
 static void set_message(const char *format, ...);
 static void update_context_hint(void);
+static void history_record_edit(void);
 static void clear_selection(void);
+static void begin_prompt(IdePrompt prompt);
 static void mark_semantic_dirty(void);
+static void ensure_semantic_fresh(bool force);
 static bool open_file_path(const char *path);
 static bool save_file_as(const char *path);
+static void row_replace_range(Row *row, size_t at, size_t old_len,
+                              const char *new_text, size_t new_len);
+static void apply_pending_goto(void);
+static void goto_definition_at_cursor(void);
+static void begin_rename_at_cursor(void);
+static bool apply_symbol_rename(const char *new_short_name);
 
 static void free_snapshot(EditorSnapshot *snapshot)
 {
@@ -328,33 +345,309 @@ static void buffer_printf(Buffer *buffer, const char *format, ...)
 static void mark_semantic_dirty(void)
 {
     editor.semantic_dirty = true;
+    editor.semantic_debounce_until =
+        clock() + (clock_t) (400 * (long) CLOCKS_PER_SEC / 1000);
     editor.diff_dirty = true;
 }
 
-static void ensure_semantic_fresh(void)
+static IdeIndexRow *snapshot_index_rows(size_t *row_count_out)
 {
     IdeIndexRow *rows;
     size_t i;
 
-    if (!editor.semantic_dirty) {
-        return;
+    if (row_count_out) {
+        *row_count_out = editor.row_count;
+    }
+    if (editor.row_count == 0) {
+        return NULL;
     }
     rows = calloc(editor.row_count, sizeof(*rows));
-    if (!rows && editor.row_count > 0) {
-        return;
+    if (!rows) {
+        return NULL;
     }
     for (i = 0; i < editor.row_count; i++) {
         if (!editor.rows[i].data) {
             free(rows);
-            return;
+            return NULL;
         }
         rows[i].data = editor.rows[i].data;
         rows[i].length = editor.rows[i].length;
     }
-    cgem_semantic_analyze_rows(rows, editor.row_count, editor.compiler,
-                               &editor.diagnostics, &editor.semantic);
+    return rows;
+}
+
+static void ensure_semantic_fresh(bool force)
+{
+    IdeIndexRow *rows;
+    size_t row_count;
+    const char *workspace =
+        editor.workspace_root && editor.workspace_root[0]
+            ? editor.workspace_root
+            : NULL;
+    const char *current_file = editor.filename ? editor.filename : NULL;
+
+    if (!editor.semantic_dirty && !force) {
+        return;
+    }
+    if (!force && !editor.semantic_force) {
+        if (clock() < editor.semantic_debounce_until) {
+            return;
+        }
+    }
+    rows = snapshot_index_rows(&row_count);
+    if (!rows && row_count > 0) {
+        return;
+    }
+    cgem_semantic_analyze_rows(rows, row_count, editor.compiler, workspace,
+                               current_file, &editor.diagnostics,
+                               &editor.semantic);
     free(rows);
     editor.semantic_dirty = false;
+    editor.semantic_force = false;
+    editor.semantic.analyzed_revision = editor.revision;
+}
+
+static void apply_pending_goto(void)
+{
+    Row *row;
+
+    if (!editor.pending_goto) {
+        return;
+    }
+    if (editor.pending_goto_line > 0 &&
+        editor.pending_goto_line <= editor.row_count) {
+        editor.cursor_y = editor.pending_goto_line - 1;
+        row = row_at(editor.cursor_y);
+        if (row) {
+            size_t x = editor.pending_goto_column > 0
+                           ? editor.pending_goto_column - 1
+                           : 0;
+
+            if (x > row->length) {
+                x = row->length;
+            }
+            editor.cursor_x = x;
+        }
+    }
+    editor.pending_goto = false;
+    editor.follow_cursor = true;
+    clear_selection();
+}
+
+static void goto_definition_at_cursor(void)
+{
+    Row *row = row_at(editor.cursor_y);
+    IdeIndexRow *rows;
+    size_t row_count;
+    char reference[256];
+    char scope[256];
+    char qualified[256];
+    size_t line;
+    size_t column;
+    char def_file[512];
+
+    if (!row) {
+        set_message("No symbol at cursor");
+        return;
+    }
+    ensure_semantic_fresh(true);
+    if (!cgem_semantic_reference_at(row->data, row->length, editor.cursor_x,
+                                    reference, sizeof(reference), NULL)) {
+        set_message("No symbol at cursor");
+        return;
+    }
+    rows = snapshot_index_rows(&row_count);
+    if (!rows && row_count > 0) {
+        set_message("Go to definition failed");
+        return;
+    }
+    if (!cgem_semantic_scope_path(rows, row_count, editor.cursor_y, scope,
+                                  sizeof(scope))) {
+        scope[0] = '\0';
+    }
+    if (!cgem_semantic_qualify_reference(reference, scope, &editor.semantic,
+                                         qualified, sizeof(qualified)) ||
+        !cgem_semantic_find_definition(&editor.semantic, qualified, &line,
+                                       &column, def_file, sizeof(def_file))) {
+        free(rows);
+        set_message("Definition not found: %s", reference);
+        return;
+    }
+    free(rows);
+    if (def_file[0] && editor.filename &&
+        strcmp(def_file, editor.filename) != 0) {
+        editor.pending_goto = true;
+        editor.pending_goto_line = line;
+        editor.pending_goto_column = column;
+        open_file_path(def_file);
+        apply_pending_goto();
+        set_message("Definition: %s", qualified);
+        return;
+    }
+    if (line > 0 && line <= editor.row_count) {
+        Row *target = row_at(line - 1);
+        size_t x = column > 0 ? column - 1 : 0;
+
+        editor.cursor_y = line - 1;
+        if (target && x > target->length) {
+            x = target->length;
+        }
+        editor.cursor_x = x;
+    }
+    editor.follow_cursor = true;
+    clear_selection();
+    set_message("Definition: %s", qualified);
+}
+
+static void begin_rename_at_cursor(void)
+{
+    Row *row = row_at(editor.cursor_y);
+    IdeIndexRow *rows;
+    size_t row_count;
+    char reference[256];
+    char scope[256];
+    char qualified[256];
+    size_t line;
+    size_t column;
+    char def_file[512];
+    const char *short_name;
+
+    if (!row) {
+        set_message("No symbol at cursor");
+        return;
+    }
+    ensure_semantic_fresh(true);
+    if (!cgem_semantic_reference_at(row->data, row->length, editor.cursor_x,
+                                    reference, sizeof(reference), NULL)) {
+        set_message("No symbol at cursor");
+        return;
+    }
+    rows = snapshot_index_rows(&row_count);
+    if (!rows && row_count > 0) {
+        set_message("Rename failed");
+        return;
+    }
+    if (!cgem_semantic_scope_path(rows, row_count, editor.cursor_y, scope,
+                                  sizeof(scope))) {
+        scope[0] = '\0';
+    }
+    if (!cgem_semantic_qualify_reference(reference, scope, &editor.semantic,
+                                         qualified, sizeof(qualified)) ||
+        !cgem_semantic_find_definition(&editor.semantic, qualified, &line,
+                                       &column, def_file, sizeof(def_file))) {
+        free(rows);
+        set_message("Definition not found: %s", reference);
+        return;
+    }
+    free(rows);
+    snprintf(editor.rename_qualified, sizeof(editor.rename_qualified), "%s",
+             qualified);
+    short_name = strrchr(editor.rename_qualified, '.');
+    short_name = short_name ? short_name + 1 : editor.rename_qualified;
+    begin_prompt(IDE_PROMPT_RENAME);
+    snprintf(editor.prompt_text, sizeof(editor.prompt_text), "%s", short_name);
+    editor.prompt_length = strlen(editor.prompt_text);
+}
+
+static bool apply_symbol_rename(const char *new_short_name)
+{
+    const char *last_dot;
+    char new_qualified[256];
+    IdeIndexRow *rows;
+    size_t row_count;
+    size_t replacements = 0;
+
+    if (!new_short_name || !new_short_name[0] || !editor.rename_qualified[0]) {
+        return false;
+    }
+    if (strchr(new_short_name, '.') || strchr(new_short_name, ' ')) {
+        set_message("Invalid name");
+        return false;
+    }
+    last_dot = strrchr(editor.rename_qualified, '.');
+    if (last_dot) {
+        size_t prefix_len = (size_t) (last_dot - editor.rename_qualified);
+
+        if (prefix_len + 1 + strlen(new_short_name) + 1 >
+            sizeof(new_qualified)) {
+            set_message("Rename failed: name too long");
+            return false;
+        }
+        memcpy(new_qualified, editor.rename_qualified, prefix_len);
+        new_qualified[prefix_len] = '.';
+        strcpy(new_qualified + prefix_len + 1, new_short_name);
+    } else if (snprintf(new_qualified, sizeof(new_qualified), "%s",
+                        new_short_name) >= (int) sizeof(new_qualified)) {
+        set_message("Rename failed: name too long");
+        return false;
+    }
+    if (strcmp(new_qualified, editor.rename_qualified) == 0) {
+        set_message("Name unchanged");
+        return true;
+    }
+    rows = snapshot_index_rows(&row_count);
+    if (!rows && row_count > 0) {
+        set_message("Rename failed");
+        return false;
+    }
+    history_record_edit();
+    for (size_t y = 0; y < editor.row_count; y++) {
+        Row *target = &editor.rows[y];
+        char scope[256];
+        size_t scan = 0;
+
+        if (!cgem_semantic_scope_path(rows, row_count, y, scope,
+                                      sizeof(scope))) {
+            scope[0] = '\0';
+        }
+        while (scan < target->length) {
+            char reference[256];
+            char qualified[256];
+            size_t start_col;
+            size_t at;
+            size_t ref_len;
+            size_t new_len;
+
+            if (!cgem_semantic_reference_at(target->data, target->length, scan,
+                                            reference, sizeof(reference),
+                                            &start_col)) {
+                break;
+            }
+            at = start_col > 0 ? start_col - 1 : 0;
+            ref_len = strlen(reference);
+            if (!cgem_semantic_qualify_reference(reference, scope,
+                                                 &editor.semantic, qualified,
+                                                 sizeof(qualified)) ||
+                strcmp(qualified, editor.rename_qualified) != 0) {
+                scan = at + ref_len;
+                continue;
+            }
+            new_len = strlen(new_qualified);
+            row_replace_range(target, at, ref_len, new_qualified, new_len);
+            replacements++;
+            if (editor.cursor_y == y && editor.cursor_x > at) {
+                if (editor.cursor_x >= at + ref_len) {
+                    editor.cursor_x =
+                        editor.cursor_x - ref_len + new_len;
+                }
+            }
+            scan = at + new_len;
+        }
+    }
+    free(rows);
+    editor.dirty = true;
+    editor.quit_pending = false;
+    mark_semantic_dirty();
+    editor.semantic_force = true;
+    snprintf(editor.rename_qualified, sizeof(editor.rename_qualified), "%s",
+             new_qualified);
+    if (replacements > 0) {
+        set_message("Renamed %zu occurrence(s) to %s", replacements,
+                    new_qualified);
+    } else {
+        set_message("No occurrences renamed");
+    }
+    return replacements > 0;
 }
 
 static bool call_context_callee(const Row *row, size_t cursor, char *callee,
@@ -1035,6 +1328,31 @@ static void row_insert_char(Row *row, size_t at, char ch)
     memmove(row->data + at + 1, row->data + at, row->length - at + 1);
     row->data[at] = ch;
     row->length++;
+}
+
+static void row_replace_range(Row *row, size_t at, size_t old_len,
+                              const char *new_text, size_t new_len)
+{
+    size_t tail;
+    size_t new_total;
+
+    if (old_len == 0 && new_len == 0) {
+        return;
+    }
+    if (at > row->length || at + old_len > row->length) {
+        return;
+    }
+    new_total = row->length - old_len + new_len;
+    ensure_row_capacity(row, new_total + 1);
+    tail = row->length - at - old_len;
+    if (new_len != old_len) {
+        memmove(row->data + at + new_len, row->data + at + old_len, tail + 1);
+    }
+    if (new_len > 0) {
+        memcpy(row->data + at, new_text, new_len);
+    }
+    row->length = new_total;
+    row->data[row->length] = '\0';
 }
 
 static void insert_char(char ch)
@@ -2246,6 +2564,15 @@ static void finish_prompt(void)
         set_message("Moved to line %ld", line);
         return;
     }
+    if (editor.prompt == IDE_PROMPT_RENAME) {
+        editor.prompt = IDE_PROMPT_NONE;
+        if (!editor.prompt_text[0]) {
+            set_message("Enter a new name");
+            return;
+        }
+        apply_symbol_rename(editor.prompt_text);
+        return;
+    }
     if (editor.prompt == IDE_PROMPT_THEME) {
         char theme_label[256];
 
@@ -2292,8 +2619,18 @@ static void handle_prompt_key(int key)
         }
     } else if (key >= 32 && key <= 126 &&
                editor.prompt_length + 1 < sizeof(editor.prompt_text)) {
-        if (editor.prompt != IDE_PROMPT_GOTO_LINE ||
-            (key >= '0' && key <= '9')) {
+        bool allow = true;
+
+        if (editor.prompt == IDE_PROMPT_GOTO_LINE) {
+            allow = key >= '0' && key <= '9';
+        } else if (editor.prompt == IDE_PROMPT_RENAME) {
+            if (editor.prompt_length == 0) {
+                allow = cg_name_start((unsigned char) key);
+            } else {
+                allow = cg_name_char((unsigned char) key);
+            }
+        }
+        if (allow) {
             editor.prompt_text[editor.prompt_length++] = (char) key;
             editor.prompt_text[editor.prompt_length] = '\0';
         }
@@ -2374,6 +2711,12 @@ static bool handle_menu_action(IdeMenuAction action)
         return true;
     case IDE_MENU_ACTION_GOTO_LINE:
         begin_prompt(IDE_PROMPT_GOTO_LINE);
+        return true;
+    case IDE_MENU_ACTION_GOTO_DEFINITION:
+        goto_definition_at_cursor();
+        return true;
+    case IDE_MENU_ACTION_RENAME:
+        begin_rename_at_cursor();
         return true;
     case IDE_MENU_ACTION_FORMAT:
         format_document();
@@ -3805,7 +4148,7 @@ static void refresh_screen(void)
         content_cols = 1;
     }
     scroll_to_cursor();
-    ensure_semantic_fresh();
+    ensure_semantic_fresh(false);
     update_context_hint();
     ensure_diff_fresh();
     sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
@@ -3893,6 +4236,11 @@ static void refresh_screen(void)
         snprintf(position, sizeof(position), "Enter: go  Esc: cancel ");
         snprintf(status, sizeof(status), " Go to line: %s", editor.prompt_text);
         draw_bar(&output, status, position, palette->header);
+    } else if (editor.prompt == IDE_PROMPT_RENAME) {
+        snprintf(position, sizeof(position), "Enter: rename  Esc: cancel ");
+        snprintf(status, sizeof(status), " Rename %s -> %s",
+                 editor.rename_qualified, editor.prompt_text);
+        draw_bar(&output, status, position, palette->header);
     } else if (editor.prompt == IDE_PROMPT_THEME) {
         const EditorTheme *live = current_theme();
 
@@ -3936,6 +4284,12 @@ static void refresh_screen(void)
                 prefix = strlen(" Find: ");
             } else if (editor.prompt == IDE_PROMPT_GOTO_LINE) {
                 prefix = strlen(" Go to line: ");
+            } else if (editor.prompt == IDE_PROMPT_RENAME) {
+                size_t label =
+                    strlen(" Rename ") + strlen(editor.rename_qualified) +
+                    strlen(" -> ");
+
+                prefix = label;
             } else {
                 prefix = strlen(" Theme: ");
             }
@@ -4070,7 +4424,8 @@ static bool save_file(void)
     }
     format_editor_buffer();
     editor.semantic_dirty = true;
-    ensure_semantic_fresh();
+    editor.semantic_force = true;
+    ensure_semantic_fresh(true);
     output = fopen(editor.filename, "wb");
     if (!output) {
         set_message("Save failed: %s", strerror(errno));
@@ -4289,6 +4644,7 @@ static bool open_file_path(const char *path)
     clear_selection();
     update_saved_snapshot();
     mark_semantic_dirty();
+    apply_pending_goto();
     save_ide_settings();
     set_message("Opened %s", editor.filename);
     return true;
@@ -4426,6 +4782,12 @@ static bool handle_key_binding(IdeKeyAction action)
         return true;
     case IDE_KEY_GOTO_LINE:
         begin_prompt(IDE_PROMPT_GOTO_LINE);
+        return true;
+    case IDE_KEY_GOTO_DEFINITION:
+        goto_definition_at_cursor();
+        return true;
+    case IDE_KEY_RENAME:
+        begin_rename_at_cursor();
         return true;
     case IDE_KEY_FORMAT:
         format_document();

@@ -25,6 +25,8 @@ typedef enum {
     IDE_KEY_FIND,
     IDE_KEY_FIND_NEXT,
     IDE_KEY_GOTO_LINE,
+    IDE_KEY_GOTO_DEFINITION,
+    IDE_KEY_RENAME,
     IDE_KEY_FORMAT,
     IDE_KEY_HELP
 } IdeKeyAction;

@@ -42,6 +42,8 @@ action.redo Ctrl+Y
 action.find Ctrl+F
 action.find_next F7
 action.goto_line Ctrl+G
+action.goto_definition F12
+action.rename F8
 action.format Ctrl+K
 action.help F1
 

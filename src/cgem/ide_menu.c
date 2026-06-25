@@ -50,6 +50,8 @@ static const MenuEntry edit_items[] = {
     { "Find", IDE_MENU_ACTION_FIND, false, true },
     { "Find Next", IDE_MENU_ACTION_FIND_NEXT, false, true },
     { "Go to Line", IDE_MENU_ACTION_GOTO_LINE, false, true },
+    { "Go to Definition", IDE_MENU_ACTION_GOTO_DEFINITION, false, true },
+    { "Rename Symbol", IDE_MENU_ACTION_RENAME, false, true },
 };
 
 static const MenuEntry build_items[] = {
@@ -159,6 +161,10 @@ static const char *menu_action_shortcut(IdeMenuAction action)
         return ide_keymap_key_label(IDE_KEY_FIND_NEXT);
     case IDE_MENU_ACTION_GOTO_LINE:
         return ide_keymap_key_label(IDE_KEY_GOTO_LINE);
+    case IDE_MENU_ACTION_GOTO_DEFINITION:
+        return ide_keymap_key_label(IDE_KEY_GOTO_DEFINITION);
+    case IDE_MENU_ACTION_RENAME:
+        return ide_keymap_key_label(IDE_KEY_RENAME);
     case IDE_MENU_ACTION_FORMAT:
         return ide_keymap_key_label(IDE_KEY_FORMAT);
     case IDE_MENU_ACTION_INDENT:

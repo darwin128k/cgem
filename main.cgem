@@ -156,7 +156,7 @@ package lh:
 
         module fields:
             struct module:
-                @require(type)
+                @require(type as lh.interval.bounds.fields)
                 field bounds as param bounds_type
                 field flags as lh.interval.flags
 

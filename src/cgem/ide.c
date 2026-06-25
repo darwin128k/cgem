@@ -1498,6 +1498,20 @@ static bool row_ends_with_colon_attribute(const Row *row, size_t at,
     return pos == row->length;
 }
 
+static bool row_is_block_require_spec_line(const Row *row)
+{
+    size_t at = leading_spaces(row);
+    ParamRequire require = cg_param_require_any();
+    bool parsed;
+
+    while (at < row->length && row->data[at] == ' ') {
+        at++;
+    }
+    parsed = cg_parse_require_spec(row->data + at, &require);
+    cg_param_require_free(&require);
+    return parsed;
+}
+
 static bool row_is_block_attribute_string_line(const Row *row)
 {
     size_t at = leading_spaces(row);
@@ -1527,10 +1541,15 @@ static bool row_is_muted_attribute_line(size_t row_index)
     row = &editor.rows[row_index];
     at = leading_spaces(row);
     if (row_ends_with_colon_attribute(row, at, "doc") ||
-        row_ends_with_colon_attribute(row, at, "include")) {
+        row_ends_with_colon_attribute(row, at, "include") ||
+        row_ends_with_colon_attribute(row, at, "require")) {
         return true;
     }
-    if (!row_is_block_attribute_string_line(row) || row_index == 0) {
+    if (!row_is_block_attribute_string_line(row) &&
+        !row_is_block_require_spec_line(row)) {
+        return false;
+    }
+    if (row_index == 0) {
         return false;
     }
     prev_indent = leading_spaces(&editor.rows[row_index - 1]);
@@ -1538,7 +1557,9 @@ static bool row_is_muted_attribute_line(size_t row_index)
         (row_ends_with_colon_attribute(&editor.rows[row_index - 1], prev_indent,
                                        "doc") ||
          row_ends_with_colon_attribute(&editor.rows[row_index - 1], prev_indent,
-                                       "include"))) {
+                                       "include") ||
+         row_ends_with_colon_attribute(&editor.rows[row_index - 1], prev_indent,
+                                       "require"))) {
         return true;
     }
     if (at == prev_indent &&
@@ -4431,6 +4452,40 @@ static size_t highlight_declaration_as_clause(
     const Row *row, size_t at, size_t *second_keyword_start,
     size_t *second_keyword_end, size_t *third_keyword_start,
     size_t *third_keyword_end, size_t *type_start, size_t *type_end,
+    size_t *colon);
+
+static size_t highlight_require_spec_clause(
+    const Row *row, size_t at, size_t *keyword_start, size_t *keyword_end,
+    size_t *second_keyword_start, size_t *second_keyword_end,
+    size_t *third_keyword_start, size_t *third_keyword_end,
+    size_t *type_start, size_t *type_end)
+{
+    if (row_word_at(row, at, "value")) {
+        *keyword_start = at;
+        *keyword_end = at + 5;
+        return at + 5;
+    }
+    if (!row_word_at(row, at, "type")) {
+        return at;
+    }
+    *keyword_start = at;
+    *keyword_end = at + 4;
+    at += 4;
+    while (at < row->length && row->data[at] == ' ') {
+        at++;
+    }
+    if (at < row->length && row_word_at(row, at, "as")) {
+        return highlight_declaration_as_clause(
+            row, at, second_keyword_start, second_keyword_end,
+            third_keyword_start, third_keyword_end, type_start, type_end, NULL);
+    }
+    return at;
+}
+
+static size_t highlight_declaration_as_clause(
+    const Row *row, size_t at, size_t *second_keyword_start,
+    size_t *second_keyword_end, size_t *third_keyword_start,
+    size_t *third_keyword_end, size_t *type_start, size_t *type_end,
     size_t *colon)
 {
     if (row->length - at < 2 || memcmp(row->data + at, "as", 2) != 0 ||
@@ -4593,11 +4648,25 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                 while (at < row->length && row->data[at] == ' ') {
                     at++;
                 }
-                if (at < row->length && row->data[at] == '"') {
+                if (attribute_end - attribute_start == 7 &&
+                    memcmp(row->data + attribute_start, "require", 7) == 0) {
+                    highlight_require_spec_clause(
+                        row, at, &keyword_start, &keyword_end,
+                        &second_keyword_start, &second_keyword_end,
+                        &third_keyword_start, &third_keyword_end, &type_start,
+                        &type_end);
+                    while (at < row->length && row->data[at] != ')') {
+                        at++;
+                    }
+                } else if (at < row->length && row->data[at] == '"') {
                     scan_highlight_string(row, at, &string_start, &string_end);
-                }
-                while (at < row->length && row->data[at] != ')') {
-                    at++;
+                    while (at < row->length && row->data[at] != ')') {
+                        at++;
+                    }
+                } else {
+                    while (at < row->length && row->data[at] != ')') {
+                        at++;
+                    }
                 }
                 if (at < row->length && row->data[at] == ')' &&
                     call_punctuation_count < CALL_PUNCTUATION_MAX) {
@@ -4605,6 +4674,11 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                 }
             }
         }
+    } else if (row_is_block_require_spec_line(row)) {
+        highlight_require_spec_clause(row, first, &keyword_start, &keyword_end,
+                                    &second_keyword_start, &second_keyword_end,
+                                    &third_keyword_start, &third_keyword_end,
+                                    &type_start, &type_end);
     } else if (row_is_block_attribute_string_line(row)) {
         scan_highlight_string(row, first, &string_start, &string_end);
     } else if (keyword_length) {

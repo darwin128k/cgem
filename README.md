@@ -334,9 +334,14 @@ C integer type aliases and fixed-width names.
 
 Parameters live inside the declaration they parameterize. A bare `param name`
 introduces a metaparameter that may stand for a type or a value depending on
-where it is used. Optional `@require type`, `@require value`, or
-`@require type or value` on the line above a parameter narrows that when
-needed.
+where it is used. Optional `@require(type)`, `@require(value)`, or
+`@require(type as <struct>)` on the line above a parameter narrows that when
+needed. The block form is also supported:
+
+```text
+@require:
+    type as lh.interval.bounds.fields
+```
 
 A `struct` with parameters generates a field macro:
 
@@ -461,7 +466,7 @@ variadic parameters become `__VA_ARGS__`:
 
 ```text
 fn module:
-    @require type or value
+    @require(value)
     param values as ...
     return c.initializer(values)
 ```

@@ -23,7 +23,8 @@ typedef enum {
 typedef enum {
     BLOCK_ATTR_NONE,
     BLOCK_ATTR_DOC,
-    BLOCK_ATTR_INCLUDE
+    BLOCK_ATTR_INCLUDE,
+    BLOCK_ATTR_REQUIRE
 } BlockAttributeKind;
 
 typedef struct {
@@ -157,12 +158,24 @@ typedef struct {
     char *expr;
 } StructMacroLine;
 
+typedef enum {
+    PARAM_REQUIRE_ANY,
+    PARAM_REQUIRE_TYPE,
+    PARAM_REQUIRE_VALUE
+} ParamRequireKind;
+
+typedef struct {
+    ParamRequireKind kind;
+    char *constraint_dsl;
+} ParamRequire;
+
 typedef struct {
     char *dsl_name;
     char *c_name;
     char *header;
     char **params;
     size_t param_count;
+    ParamRequire *param_requires;
     bool all_mutable;
     StructField *fields;
     size_t field_count;
@@ -188,13 +201,6 @@ typedef struct {
     char *value;
     bool is_ref;
 } FunctionArg;
-
-typedef enum {
-    PARAM_REQUIRE_ANY,
-    PARAM_REQUIRE_TYPE,
-    PARAM_REQUIRE_VALUE,
-    PARAM_REQUIRE_TYPE_OR_VALUE
-} ParamRequire;
 
 typedef struct {
     bool active;
@@ -233,7 +239,7 @@ typedef struct {
     size_t param_count;
     bool has_meta_params;
     bool pending_param_require;
-    ParamRequire pending_param_require_kind;
+    ParamRequire pending_param_require_value;
     bool is_method;
     bool self_mutable;
     char *struct_dsl_name;
@@ -258,7 +264,7 @@ typedef struct {
     bool *param_variadic;
     ParamRequire *param_requires;
     bool pending_param_require;
-    ParamRequire pending_param_require_kind;
+    ParamRequire pending_param_require_value;
     StructField *fields;
     size_t field_count;
     size_t field_capacity;
@@ -399,6 +405,11 @@ bool cg_parse_param(const char *text, char **name, FieldType *type,
                     bool *is_meta, bool *is_variadic);
 bool cg_parse_inline_param(const char *text, size_t *consumed, bool *pointer,
                            bool *mutable_attr, char **name, FieldType *type);
+ParamRequire cg_param_require_any(void);
+void cg_param_require_free(ParamRequire *require);
+ParamRequire cg_param_require_copy(ParamRequire require);
+void cg_param_require_free_array(ParamRequire *requires, size_t count);
+bool cg_parse_require_spec(const char *spec, ParamRequire *require);
 bool cg_parse_require_attribute(const char *text, ParamRequire *require);
 void cg_free_field_type(FieldType *type);
 bool cg_parse_field(const char *text, char **name, FieldType *type);

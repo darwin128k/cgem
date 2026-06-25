@@ -126,7 +126,7 @@ static int check_param_type_use(const char **params, const ParamRequire *require
     if (index < 0) {
         return 0;
     }
-    if (requires && requires[index] == PARAM_REQUIRE_VALUE) {
+    if (requires && requires[index].kind == PARAM_REQUIRE_VALUE) {
         cg_set_error(error, error_size,
                      "line %zu: param %s is @require value and cannot be "
                      "used as a type",
@@ -146,7 +146,7 @@ static int check_param_value_use(const char **params, const ParamRequire *requir
     if (index < 0) {
         return 0;
     }
-    if (requires && requires[index] == PARAM_REQUIRE_TYPE) {
+    if (requires && requires[index].kind == PARAM_REQUIRE_TYPE) {
         cg_set_error(error, error_size,
                      "line %zu: param %s is @require type and cannot be "
                      "used as a value",
@@ -225,7 +225,7 @@ static int append_param(char ***params, bool **param_variadic,
     *param_requires = grown_requires;
     (*params)[*param_count] = name;
     (*param_variadic)[*param_count] = variadic;
-    (*param_requires)[*param_count] = require;
+    (*param_requires)[*param_count] = cg_param_require_copy(require);
     (*param_count)++;
     return 0;
 }
@@ -286,7 +286,7 @@ static int append_parsed_param(char ***params, bool **param_variadic,
     *param_requires = grown_requires;
     (*params)[*param_count] = name;
     (*param_variadic)[*param_count] = false;
-    (*param_requires)[*param_count] = require;
+    (*param_requires)[*param_count] = cg_param_require_copy(require);
     (*param_count)++;
     return 0;
 }
@@ -1406,7 +1406,7 @@ static int process_function_param_line(
     bool param_is_meta = false;
     char *param_c_type = NULL;
     char **grown_types;
-    ParamRequire require = PARAM_REQUIRE_ANY;
+    ParamRequire require = cg_param_require_any();
     bool param_mutable = function_output->param_mutable_pending;
     bool param_pointer = function_output->param_pointer_pending;
 
@@ -1414,7 +1414,8 @@ static int process_function_param_line(
     function_output->param_pointer_pending = false;
 
     if (function_output->pending_param_require) {
-        require = function_output->pending_param_require_kind;
+        require = cg_param_require_copy(function_output->pending_param_require_value);
+        cg_param_require_free(&function_output->pending_param_require_value);
         function_output->pending_param_require = false;
     }
     if (function_output->has_return || function_output->local_count > 0 ||
@@ -1519,7 +1520,7 @@ static int process_inline_function_param(
                             &function_output->param_variadic,
                             &function_output->param_requires,
                             &function_output->param_count, param_name,
-                            PARAM_REQUIRE_ANY, line_number, error,
+                            cg_param_require_any(), line_number, error,
                             error_size) != 0) {
         return -1;
     }
@@ -2030,7 +2031,7 @@ static int begin_struct_method(
     function_output->params[0] = strdup("self");
     function_output->param_types[0] = self_param_type;
     function_output->param_variadic[0] = false;
-    function_output->param_requires[0] = PARAM_REQUIRE_ANY;
+    function_output->param_requires[0] = cg_param_require_any();
     if (!function_output->params[0]) {
         cg_clear_function(function_output);
         cg_set_error(error, error_size, "out of memory");
@@ -2637,6 +2638,131 @@ static char *transform_function_expression(
 }
 
 static StructTemplate *find_struct_template(StructTemplate *templates,
+                                            size_t count, const char *dsl_name);
+
+static const char *resolve_dsl_type_name(Symbol *symbols, size_t symbol_count,
+                                         const char *name)
+{
+    const char *current = name;
+    size_t guard = 0;
+
+    if (!name) {
+        return NULL;
+    }
+    while (guard++ < 32) {
+        Symbol *symbol = cg_find_symbol(symbols, symbol_count, current);
+
+        if (!symbol || !symbol->type_dsl_name) {
+            return current;
+        }
+        current = symbol->type_dsl_name;
+    }
+    return current;
+}
+
+static bool template_field_type_is_param(const StructTemplate *template,
+                                         const char *type)
+{
+    if (!template || !type) {
+        return false;
+    }
+    for (size_t i = 0; i < template->param_count; i++) {
+        if (strcmp(template->params[i], type) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool concrete_field_types_match(Symbol *symbols, size_t symbol_count,
+                                       const char *actual_type,
+                                       const char *required_type)
+{
+    const char *resolved_actual;
+    const char *resolved_required;
+
+    if (!actual_type || !required_type) {
+        return false;
+    }
+    if (strcmp(actual_type, required_type) == 0) {
+        return true;
+    }
+    resolved_actual = resolve_dsl_type_name(symbols, symbol_count, actual_type);
+    resolved_required =
+        resolve_dsl_type_name(symbols, symbol_count, required_type);
+    return resolved_actual && resolved_required &&
+           strcmp(resolved_actual, resolved_required) == 0;
+}
+
+static bool struct_template_prefix_matches(const StructTemplate *required,
+                                           const StructTemplate *actual,
+                                           Symbol *symbols,
+                                           size_t symbol_count)
+{
+    if (!required || !actual || actual->field_count < required->field_count) {
+        return false;
+    }
+    for (size_t i = 0; i < required->field_count; i++) {
+        if (strcmp(actual->fields[i].name, required->fields[i].name) != 0) {
+            return false;
+        }
+        if (template_field_type_is_param(required, required->fields[i].type)) {
+            continue;
+        }
+        if (!concrete_field_types_match(symbols, symbol_count,
+                                        actual->fields[i].type,
+                                        required->fields[i].type)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool dsl_type_satisfies_require_constraint(
+    const char *actual_dsl, const char *required_dsl, Symbol *symbols,
+    size_t symbol_count, StructTemplate *templates, size_t template_count,
+    size_t line_number, char *error, size_t error_size)
+{
+    const char *resolved_actual;
+    const char *resolved_required;
+    StructTemplate *required_template;
+    StructTemplate *actual_template;
+
+    resolved_actual =
+        resolve_dsl_type_name(symbols, symbol_count, actual_dsl);
+    resolved_required =
+        resolve_dsl_type_name(symbols, symbol_count, required_dsl);
+    if (strcmp(resolved_actual, resolved_required) == 0) {
+        return true;
+    }
+    required_template =
+        find_struct_template(templates, template_count, resolved_required);
+    if (!required_template) {
+        cg_set_error(error, error_size,
+                     "line %zu: @require(type as %s) refers to unknown "
+                     "struct template",
+                     line_number, required_dsl);
+        return false;
+    }
+    actual_template =
+        find_struct_template(templates, template_count, resolved_actual);
+    if (!actual_template) {
+        cg_set_error(error, error_size,
+                     "line %zu: type %s does not satisfy @require(type as %s)",
+                     line_number, actual_dsl, required_dsl);
+        return false;
+    }
+    if (struct_template_prefix_matches(required_template, actual_template,
+                                       symbols, symbol_count)) {
+        return true;
+    }
+    cg_set_error(error, error_size,
+                 "line %zu: type %s does not satisfy @require(type as %s)",
+                 line_number, actual_dsl, required_dsl);
+    return false;
+}
+
+static StructTemplate *find_struct_template(StructTemplate *templates,
                                             size_t count, const char *dsl_name)
 {
     for (size_t i = count; i > 0; i--) {
@@ -2653,6 +2779,8 @@ static void free_struct_template(StructTemplate *template)
     free(template->c_name);
     free(template->header);
     cg_free_names(template->params, template->param_count);
+    cg_param_require_free_array(template->param_requires, template->param_count);
+    free(template->param_requires);
     for (size_t i = 0; i < template->field_count; i++) {
         free(template->fields[i].name);
         free(template->fields[i].type);
@@ -2684,13 +2812,21 @@ static int save_struct_template(StructTemplate **templates, size_t *count,
     entry.param_count = output->param_count;
     if (entry.param_count) {
         entry.params = calloc(entry.param_count, sizeof(*entry.params));
-        if (!entry.params) {
+        entry.param_requires =
+            calloc(entry.param_count, sizeof(*entry.param_requires));
+        if (!entry.params || !entry.param_requires) {
+            free(entry.params);
+            free(entry.param_requires);
             free_struct_template(&entry);
             return -1;
         }
         for (size_t i = 0; i < entry.param_count; i++) {
             entry.params[i] = strdup(output->params[i]);
-            if (!entry.params[i]) {
+            entry.param_requires[i] =
+                cg_param_require_copy(output->param_requires[i]);
+            if (!entry.params[i] ||
+                (output->param_requires[i].constraint_dsl &&
+                 !entry.param_requires[i].constraint_dsl)) {
                 free_struct_template(&entry);
                 return -1;
             }
@@ -3358,6 +3494,48 @@ int cgem_compile(FILE *input, const char *include_path,
         if (block_attribute != BLOCK_ATTR_NONE) {
             char *block_value = NULL;
 
+            if (block_attribute == BLOCK_ATTR_REQUIRE &&
+                indent == block_attribute_indent + 4) {
+                ParamRequire parsed = cg_param_require_any();
+
+                if (cg_parse_require_spec(line + indent, &parsed)) {
+                    if (struct_output.active &&
+                        block_attribute_indent == struct_output.indent + 4) {
+                        if (struct_output.pending_param_require) {
+                            cg_param_require_free(&parsed);
+                            cg_set_error(error, error_size,
+                                      "line %zu: @require specified more "
+                                      "than once",
+                                      line_number);
+                            goto done;
+                        }
+                        struct_output.pending_param_require_value = parsed;
+                        struct_output.pending_param_require = true;
+                    } else if (function_output.active &&
+                               block_attribute_indent ==
+                                   function_output.indent + 4) {
+                        if (function_output.pending_param_require) {
+                            cg_param_require_free(&parsed);
+                            cg_set_error(error, error_size,
+                                      "line %zu: @require specified more "
+                                      "than once",
+                                      line_number);
+                            goto done;
+                        }
+                        function_output.pending_param_require_value = parsed;
+                        function_output.pending_param_require = true;
+                    } else {
+                        cg_param_require_free(&parsed);
+                        cg_set_error(error, error_size,
+                                  "line %zu: @require is not allowed here",
+                                  line_number);
+                        goto done;
+                    }
+                    block_attribute_values++;
+                    continue;
+                }
+                cg_param_require_free(&parsed);
+            }
             if (indent == block_attribute_indent + 4 &&
                 cg_parse_block_attribute_string(line + indent, &block_value)) {
                 if (block_attribute == BLOCK_ATTR_DOC) {
@@ -3378,10 +3556,13 @@ int cgem_compile(FILE *input, const char *include_path,
             }
             if (block_attribute_values == 0) {
                 cg_set_error(error, error_size,
-                          "line %zu: @%s: requires at least one string",
+                          "line %zu: @%s: requires at least one %s",
                           line_number,
                           block_attribute == BLOCK_ATTR_DOC ? "doc"
-                                                            : "include");
+                          : block_attribute == BLOCK_ATTR_INCLUDE ? "include"
+                                                                  : "require",
+                          block_attribute == BLOCK_ATTR_REQUIRE ? "specification"
+                                                                : "string");
                 goto done;
             }
             block_attribute = BLOCK_ATTR_NONE;
@@ -3549,17 +3730,48 @@ int cgem_compile(FILE *input, const char *include_path,
             FieldType cast_type = {0};
             char *cast_c_type = NULL;
 
+            if (indent == function_body_indent) {
+                BlockAttributeKind kind;
+
+                if (cg_parse_block_attribute_opener(line + indent, &kind)) {
+                    if (kind != BLOCK_ATTR_REQUIRE) {
+                        cg_set_error(error, error_size,
+                                  "line %zu: unsupported attribute inside fn",
+                                  line_number);
+                        goto done;
+                    }
+                    if (function_output.has_return ||
+                        function_output.local_count > 0 ||
+                        function_output.local_mutable ||
+                        function_output.local_used) {
+                        cg_set_error(error, error_size,
+                                  "line %zu: params must precede the function "
+                                  "body",
+                                  line_number);
+                        goto done;
+                    }
+                    block_attribute = kind;
+                    block_attribute_indent = indent;
+                    block_attribute_values = 0;
+                    continue;
+                }
+            }
+
             if (indent == function_body_indent &&
                 cg_parse_require_attribute(line + indent,
-                                           &function_output.pending_param_require_kind)) {
+                                           &function_output.pending_param_require_value)) {
                 if (function_output.has_return || function_output.local_count > 0 ||
                     function_output.local_mutable || function_output.local_used) {
+                    cg_param_require_free(
+                        &function_output.pending_param_require_value);
                     cg_set_error(error, error_size,
                               "line %zu: params must precede the function body",
                               line_number);
                     goto done;
                 }
                 if (function_output.pending_param_require) {
+                    cg_param_require_free(
+                        &function_output.pending_param_require_value);
                     cg_set_error(error, error_size,
                               "line %zu: @require specified more than once",
                               line_number);
@@ -3571,8 +3783,8 @@ int cgem_compile(FILE *input, const char *include_path,
             if (indent == function_body_indent &&
                 strncmp(line + indent, "@require", 8) == 0) {
                 cg_set_error(error, error_size,
-                          "line %zu: invalid @require syntax; use @require "
-                          "type, @require value, or @require type or value",
+                          "line %zu: invalid @require syntax; use @require(type), "
+                          "@require(value), or @require(type as <type>)",
                           line_number);
                 goto done;
             }
@@ -4254,6 +4466,32 @@ int cgem_compile(FILE *input, const char *include_path,
                 BlockAttributeKind kind;
                 char *inline_value = NULL;
                 const char *struct_text = line + indent;
+                ParamRequire parsed_require = cg_param_require_any();
+
+                if (cg_parse_require_attribute(struct_text, &parsed_require)) {
+                    if (struct_output.macro_line_count > 0 ||
+                        attribute_mutable ||
+                        struct_output.field_expand ||
+                        struct_output.field_pointer) {
+                        cg_param_require_free(&parsed_require);
+                        cg_set_error(error, error_size,
+                                  "line %zu: @require must precede struct "
+                                  "params",
+                                  line_number);
+                        goto done;
+                    }
+                    if (struct_output.pending_param_require) {
+                        cg_param_require_free(&parsed_require);
+                        cg_set_error(error, error_size,
+                                  "line %zu: @require specified more than once",
+                                  line_number);
+                        goto done;
+                    }
+                    struct_output.pending_param_require_value = parsed_require;
+                    struct_output.pending_param_require = true;
+                    continue;
+                }
+                cg_param_require_free(&parsed_require);
 
                 if (cg_parse_inline_block_attribute(struct_text, &kind,
                                                   &inline_value)) {
@@ -4277,7 +4515,7 @@ int cgem_compile(FILE *input, const char *include_path,
                     continue;
                 }
                 if (cg_parse_block_attribute_opener(struct_text, &kind)) {
-                    if (kind != BLOCK_ATTR_DOC) {
+                    if (kind != BLOCK_ATTR_DOC && kind != BLOCK_ATTR_REQUIRE) {
                         cg_set_error(error, error_size,
                                   "line %zu: unsupported attribute inside "
                                   "struct",
@@ -4293,10 +4531,13 @@ int cgem_compile(FILE *input, const char *include_path,
 
             if (indent == struct_output.indent + 4 &&
                 strncmp(line + indent, "param ", 6) == 0) {
-                ParamRequire require = PARAM_REQUIRE_ANY;
+                ParamRequire require = cg_param_require_any();
 
                 if (struct_output.pending_param_require) {
-                    require = struct_output.pending_param_require_kind;
+                    require = cg_param_require_copy(
+                        struct_output.pending_param_require_value);
+                    cg_param_require_free(
+                        &struct_output.pending_param_require_value);
                     struct_output.pending_param_require = false;
                 }
                 if (struct_output.field_count > 0 ||
@@ -4320,17 +4561,21 @@ int cgem_compile(FILE *input, const char *include_path,
 
             if (indent == struct_output.indent + 4 &&
                 cg_parse_require_attribute(line + indent,
-                                           &struct_output.pending_param_require_kind)) {
+                                           &struct_output.pending_param_require_value)) {
                 if (struct_output.macro_line_count > 0 ||
                     attribute_mutable ||
                     struct_output.field_expand ||
                     struct_output.field_pointer) {
+                    cg_param_require_free(
+                        &struct_output.pending_param_require_value);
                     cg_set_error(error, error_size,
                               "line %zu: @require must precede struct params",
                               line_number);
                     goto done;
                 }
                 if (struct_output.pending_param_require) {
+                    cg_param_require_free(
+                        &struct_output.pending_param_require_value);
                     cg_set_error(error, error_size,
                               "line %zu: @require specified more than once",
                               line_number);
@@ -4342,8 +4587,8 @@ int cgem_compile(FILE *input, const char *include_path,
             if (indent == struct_output.indent + 4 &&
                 strncmp(line + indent, "@require", 8) == 0) {
                 cg_set_error(error, error_size,
-                          "line %zu: invalid @require syntax; use @require "
-                          "type, @require value, or @require type or value",
+                          "line %zu: invalid @require syntax; use @require(type), "
+                          "@require(value), or @require(type as <type>)",
                           line_number);
                 goto done;
             }
@@ -4439,6 +4684,21 @@ int cgem_compile(FILE *input, const char *include_path,
                         free(macro_callee);
                         cg_free_cstr_array(macro_args, macro_arg_count);
                         goto done;
+                    }
+                    for (size_t i = 0; i < macro_arg_count; i++) {
+                        const ParamRequire *req =
+                            &macro_template->param_requires[i];
+
+                        if (req->constraint_dsl &&
+                            !dsl_type_satisfies_require_constraint(
+                                macro_args[i], req->constraint_dsl, symbols,
+                                symbol_count, struct_templates,
+                                struct_template_count, line_number, error,
+                                error_size)) {
+                            free(macro_callee);
+                            cg_free_cstr_array(macro_args, macro_arg_count);
+                            goto done;
+                        }
                     }
                     resolved_args = calloc(macro_arg_count, sizeof(*resolved_args));
                     if (!resolved_args) {
@@ -4584,11 +4844,14 @@ int cgem_compile(FILE *input, const char *include_path,
                 goto done;
             }
             {
-                ParamRequire require = PARAM_REQUIRE_ANY;
+                ParamRequire require = cg_param_require_any();
                 char *field_doc = NULL;
 
                 if (struct_output.pending_param_require) {
-                    require = struct_output.pending_param_require_kind;
+                    require = cg_param_require_copy(
+                        struct_output.pending_param_require_value);
+                    cg_param_require_free(
+                        &struct_output.pending_param_require_value);
                     struct_output.pending_param_require = false;
                 }
                 if (field_type.is_param_ref) {
@@ -6412,9 +6675,13 @@ int cgem_compile(FILE *input, const char *include_path,
     if (block_attribute != BLOCK_ATTR_NONE) {
         if (block_attribute_values == 0) {
             cg_set_error(error, error_size,
-                      "line %zu: @%s: requires at least one string",
+                      "line %zu: @%s: requires at least one %s",
                       line_number,
-                      block_attribute == BLOCK_ATTR_DOC ? "doc" : "include");
+                      block_attribute == BLOCK_ATTR_DOC ? "doc"
+                      : block_attribute == BLOCK_ATTR_INCLUDE ? "include"
+                                                              : "require",
+                      block_attribute == BLOCK_ATTR_REQUIRE ? "specification"
+                                                            : "string");
             goto done;
         }
     }

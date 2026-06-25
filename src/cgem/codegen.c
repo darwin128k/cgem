@@ -162,6 +162,7 @@ void cg_clear_struct(StructOutput *output)
     free(output->header);
     cg_free_names(output->params, output->param_count);
     free(output->param_variadic);
+    cg_param_require_free_array(output->param_requires, output->param_count);
     free(output->param_requires);
     for (size_t i = 0; i < output->field_count; i++) {
         free(output->fields[i].name);
@@ -359,6 +360,7 @@ void cg_clear_function(FunctionOutput *output)
     cg_free_names(output->params, output->param_count);
     cg_free_names(output->param_types, output->param_count);
     free(output->param_variadic);
+    cg_param_require_free_array(output->param_requires, output->param_count);
     free(output->param_requires);
     free(output->struct_dsl_name);
     free(output->self_struct_tag);

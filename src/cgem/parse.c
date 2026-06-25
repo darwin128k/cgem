@@ -535,39 +535,149 @@ fail_inline:
     return false;
 }
 
+ParamRequire cg_param_require_any(void)
+{
+    return (ParamRequire) {PARAM_REQUIRE_ANY, NULL};
+}
+
+void cg_param_require_free(ParamRequire *require)
+{
+    if (!require) {
+        return;
+    }
+    free(require->constraint_dsl);
+    *require = cg_param_require_any();
+}
+
+ParamRequire cg_param_require_copy(ParamRequire require)
+{
+    ParamRequire copy = require;
+
+    if (require.constraint_dsl) {
+        copy.constraint_dsl = strdup(require.constraint_dsl);
+        if (!copy.constraint_dsl) {
+            return cg_param_require_any();
+        }
+    }
+    return copy;
+}
+
+void cg_param_require_free_array(ParamRequire *requires, size_t count)
+{
+    if (!requires) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        cg_param_require_free(&requires[i]);
+    }
+}
+
+static bool trim_require_spec(const char *text, size_t *start_out, size_t *end_out)
+{
+    size_t start = 0;
+    size_t end = strlen(text);
+
+    while (start < end && text[start] == ' ') {
+        start++;
+    }
+    while (end > start && text[end - 1] == ' ') {
+        end--;
+    }
+    if (start >= end) {
+        return false;
+    }
+    *start_out = start;
+    *end_out = end;
+    return true;
+}
+
+bool cg_parse_require_spec(const char *spec, ParamRequire *require)
+{
+    size_t start;
+    size_t end;
+    size_t at;
+    char *constraint;
+
+    *require = cg_param_require_any();
+    if (!trim_require_spec(spec, &start, &end)) {
+        return false;
+    }
+    if ((size_t) (end - start) == 5 &&
+        memcmp(spec + start, "value", 5) == 0) {
+        *require = (ParamRequire) {PARAM_REQUIRE_VALUE, NULL};
+        return true;
+    }
+    if ((size_t) (end - start) < 4 ||
+        memcmp(spec + start, "type", 4) != 0) {
+        return false;
+    }
+    at = start + 4;
+    while (at < end && spec[at] == ' ') {
+        at++;
+    }
+    if (at == end) {
+        *require = (ParamRequire) {PARAM_REQUIRE_TYPE, NULL};
+        return true;
+    }
+    if ((size_t) (end - at) < 2 || memcmp(spec + at, "as", 2) != 0 ||
+        (at + 2 < end && spec[at + 2] != ' ')) {
+        return false;
+    }
+    at += 2;
+    while (at < end && spec[at] == ' ') {
+        at++;
+    }
+    if (at >= end || !cg_name_start((unsigned char) spec[at])) {
+        return false;
+    }
+    {
+        size_t name_start = at;
+
+        while (at < end &&
+               (cg_name_char((unsigned char) spec[at]) || spec[at] == '.')) {
+            at++;
+        }
+        while (at < end && spec[at] == ' ') {
+            at++;
+        }
+        if (at != end) {
+            return false;
+        }
+        constraint = cg_copy_text(spec + name_start, end - name_start);
+        if (!constraint) {
+            return false;
+        }
+        *require = (ParamRequire) {PARAM_REQUIRE_TYPE, constraint};
+        return true;
+    }
+}
+
 bool cg_parse_require_attribute(const char *text, ParamRequire *require)
 {
-    size_t at = 0;
+    const char *name;
+    size_t name_length;
+    char **args = NULL;
+    size_t arg_count = 0;
 
-    *require = PARAM_REQUIRE_ANY;
-    if (text[at++] != '@') {
+    *require = cg_param_require_any();
+    if (!cg_parse_attribute_call(text, &name, &name_length, &args, &arg_count)) {
         return false;
     }
-    if (strncmp(text + at, "require", 7) != 0) {
+    if (name_length != strlen("require") ||
+        memcmp(name, "require", name_length) != 0) {
+        cg_free_cstr_array(args, arg_count);
         return false;
     }
-    at += 7;
-    while (text[at] == ' ') {
-        at++;
-    }
-    if (strncmp(text + at, "type or value", 13) == 0) {
-        at += 13;
-        *require = PARAM_REQUIRE_TYPE_OR_VALUE;
-    } else if (strncmp(text + at, "type", 4) == 0 &&
-               (text[at + 4] == '\0' || text[at + 4] == ' ')) {
-        at += 4;
-        *require = PARAM_REQUIRE_TYPE;
-    } else if (strncmp(text + at, "value", 5) == 0 &&
-               (text[at + 5] == '\0' || text[at + 5] == ' ')) {
-        at += 5;
-        *require = PARAM_REQUIRE_VALUE;
-    } else {
+    if (arg_count != 1) {
+        cg_free_cstr_array(args, arg_count);
         return false;
     }
-    while (text[at] == ' ') {
-        at++;
+    if (!cg_parse_require_spec(args[0], require)) {
+        cg_free_cstr_array(args, arg_count);
+        return false;
     }
-    return text[at] == '\0';
+    cg_free_cstr_array(args, arg_count);
+    return true;
 }
 
 void cg_free_field_type(FieldType *type)
@@ -1109,6 +1219,11 @@ static bool block_attribute_kind_for_name(const char *name, size_t name_length,
     if (name_length == strlen("include") &&
         memcmp(name, "include", name_length) == 0) {
         *kind = BLOCK_ATTR_INCLUDE;
+        return true;
+    }
+    if (name_length == strlen("require") &&
+        memcmp(name, "require", name_length) == 0) {
+        *kind = BLOCK_ATTR_REQUIRE;
         return true;
     }
     return false;

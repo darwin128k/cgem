@@ -3,6 +3,6 @@
 
 #include "lh/str/char.h"
 
-typedef lh_str_char_t *lh_str_raw_t;
+#define lh_str_raw lh_str_char_t *
 
 #endif /* LH_STR_RAW_H */

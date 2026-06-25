@@ -39,6 +39,7 @@ package lh:
 
         module raw:
             @pointer
+            @define
             type module as lh.str.char
 
     module byte:

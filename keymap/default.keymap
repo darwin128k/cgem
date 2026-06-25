@@ -5,23 +5,19 @@
 # (Ctrl+Shift, Shift+Alt and similar combos are not supported — unreliable in
 # terminals and the Windows console, same reason vi/nano stick to simpler keys.)
 #
+# Top level: F1 = help, F2-F6 = open menu bars (File / Edit / Build / Options / Help).
+# Menu items and editor actions: Ctrl+letter only (see layout below).
+# Theme and Save As have no default shortcut.
+#
 # Ctrl+letter layout (one action per letter):
-#   A select-all   B generate*   C copy      D free
-#   E free         F find      G goto      H free
-#   I (tab)        J free      K format    L (clear screen in shell)
-#   M (enter)      N free      O open*     P free
-#   Q quit         R free      S save      T free
-#   U paste formatted   V paste   W free      X cut
+#   A select-all   B generate*   C copy        D goto definition
+#   E free         F find        G goto line   H free
+#   I (tab)        J free        K format      L (shell clear screen)
+#   M (enter)      N find next   O open        P rename
+#   Q quit         R free        S save        T free
+#   U paste fmt    V paste       W free        X cut
 #   Y redo         Z undo
 # * Ctrl+B is Generate for now; action.build (compile) will reuse it later.
-# * O reserved for action.open.
-#
-# F2-F6 open top-level menus only.
-#
-# Function keys: F1-F7 are used by default; F8, F9, F11, and F12 are free
-# for custom bindings. Do not bind F10 — on Windows consoles (including XP) it
-# opens the system menu and the key may never reach the editor. Rebind F10 only
-# at your own risk (Linux terminals are usually fine).
 
 menu.file F2
 menu.edit F3
@@ -29,6 +25,7 @@ menu.build F4
 menu.options F5
 menu.help F6
 
+action.open Ctrl+O
 action.save Ctrl+S
 action.generate Ctrl+B
 action.quit Ctrl+Q
@@ -40,16 +37,13 @@ action.select_all Ctrl+A
 action.undo Ctrl+Z
 action.redo Ctrl+Y
 action.find Ctrl+F
-action.find_next F7
+action.find_next Ctrl+N
 action.goto_line Ctrl+G
-action.goto_definition F12
-action.rename F8
+action.goto_definition Ctrl+D
+action.rename Ctrl+P
 action.format Ctrl+K
 action.help F1
 
 # Fixed editor keys (not remappable — terminal Tab / Shift+Tab):
 #   Tab         increase nesting (4 spaces) or accept keyword hint
 #   Shift+Tab   decrease nesting (4 spaces)
-
-# action.build Ctrl+B
-# action.open Ctrl+O

@@ -35,10 +35,10 @@ static const KeyActionSpec action_specs[] = {
     { "action.undo", IDE_KEY_UNDO, 26 },
     { "action.redo", IDE_KEY_REDO, 25 },
     { "action.find", IDE_KEY_FIND, 6 },
-    { "action.find_next", IDE_KEY_FIND_NEXT, KEY_F7 },
+    { "action.find_next", IDE_KEY_FIND_NEXT, 14 },
     { "action.goto_line", IDE_KEY_GOTO_LINE, 7 },
-    { "action.goto_definition", IDE_KEY_GOTO_DEFINITION, KEY_F12 },
-    { "action.rename", IDE_KEY_RENAME, KEY_F8 },
+    { "action.goto_definition", IDE_KEY_GOTO_DEFINITION, 4 },
+    { "action.rename", IDE_KEY_RENAME, 16 },
     { "action.format", IDE_KEY_FORMAT, 11 },
     { "action.help", IDE_KEY_HELP, KEY_F1 },
 };

@@ -881,6 +881,9 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
     if (result != 0) {
         return result;
     }
+    if (cg_diagnostic_has_errors(diagnostics)) {
+        return 0;
+    }
     cgem_semantic_index_definitions(rows, row_count, current_file, semantic);
     ide_index_collect_hints(&semantic->hints, rows, row_count);
     cgem_typecheck_rows(semantic, rows, row_count, diagnostics);

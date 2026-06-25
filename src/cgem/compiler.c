@@ -3569,6 +3569,14 @@ int cgem_compile(FILE *input, const char *include_path,
                 continue;
             }
             if (indent == function_body_indent &&
+                strncmp(line + indent, "@require", 8) == 0) {
+                cg_set_error(error, error_size,
+                          "line %zu: invalid @require syntax; use @require "
+                          "type, @require value, or @require type or value",
+                          line_number);
+                goto done;
+            }
+            if (indent == function_body_indent &&
                 strcmp(line + indent, "@mutable") == 0) {
                 if (function_output.has_return || function_output.local_count > 0 ||
                     function_output.statement_count > 0) {
@@ -4330,6 +4338,14 @@ int cgem_compile(FILE *input, const char *include_path,
                 }
                 struct_output.pending_param_require = true;
                 continue;
+            }
+            if (indent == struct_output.indent + 4 &&
+                strncmp(line + indent, "@require", 8) == 0) {
+                cg_set_error(error, error_size,
+                          "line %zu: invalid @require syntax; use @require "
+                          "type, @require value, or @require type or value",
+                          line_number);
+                goto done;
             }
 
             if (indent == struct_output.indent + 4 &&

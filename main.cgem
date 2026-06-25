@@ -153,6 +153,14 @@ package lh:
                     param type
                     lh.pair.fields(type, type)
 
+            module initializer:
+                fn module:
+                    @require(type)
+                    param lower_value
+                    @require(value)
+                    param upper_value
+                    return lh.initializer(lower_value, upper_value)
+
         module flags:
             enum module as lh.byte:
                 case closed = 0

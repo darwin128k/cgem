@@ -3226,6 +3226,182 @@ static char *transform_pp_condition(
         header_deps_count, header_deps_capacity, 0, error, error_size);
 }
 
+static FnInitMacroTemplate *find_fn_init_template(FnInitMacroTemplate *templates,
+                                                  size_t count,
+                                                  const char *dsl_name)
+{
+    for (size_t i = count; i > 0; i--) {
+        if (strcmp(templates[i - 1].dsl_name, dsl_name) == 0) {
+            return &templates[i - 1];
+        }
+    }
+    return NULL;
+}
+
+static bool is_function_meta_param(const FunctionOutput *function,
+                                   const char *name)
+{
+    for (size_t i = 0; i < function->param_count; i++) {
+        if (strcmp(function->params[i], name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int remember_fn_init_macro(FnInitMacroTemplate **templates,
+                                  size_t *count, size_t *capacity,
+                                  Symbol *symbols, size_t symbol_count,
+                                  const FunctionOutput *output,
+                                  const ModuleOutput *module)
+{
+    FnInitMacroTemplate entry = {0};
+    Symbol *symbol;
+    FnInitMacroTemplate *grown;
+
+    if (!output->has_meta_params || !output->has_return ||
+        (!output->return_is_initializer && !output->return_is_composed_macro)) {
+        return 0;
+    }
+    symbol = cg_find_symbol_by_c_name(symbols, symbol_count, output->c_name);
+    if (!symbol) {
+        return 0;
+    }
+    if (*count == *capacity) {
+        size_t next = *capacity ? *capacity * 2 : 4;
+
+        grown = realloc(*templates, next * sizeof(*grown));
+        if (!grown) {
+            return -1;
+        }
+        *templates = grown;
+        *capacity = next;
+    }
+    entry.dsl_name = strdup(symbol->dsl_name);
+    entry.c_name = strdup(output->c_name);
+    entry.header = strdup(module->relative_header);
+    entry.param_count = output->param_count;
+    entry.variadic = output->param_count > 0 && output->param_variadic &&
+                     output->param_variadic[output->param_count - 1];
+    if (!entry.dsl_name || !entry.c_name || !entry.header) {
+        free(entry.dsl_name);
+        free(entry.c_name);
+        free(entry.header);
+        return -1;
+    }
+    (*templates)[(*count)++] = entry;
+    return 0;
+}
+
+static int transform_composed_initializer(
+    const char *expression, FunctionOutput *function,
+    FnInitMacroTemplate *templates, size_t template_count, Symbol *symbols,
+    size_t symbol_count, ModuleOutput *module, HeaderDeps **header_deps,
+    size_t *header_deps_count, size_t *header_deps_capacity, bool expand,
+    size_t line_number, char **result, size_t *value_count, bool *composed,
+    char *error, size_t error_size)
+{
+    char *callee = NULL;
+    char **args = NULL;
+    size_t arg_count = 0;
+    FnInitMacroTemplate *macro_template;
+    char **resolved_args = NULL;
+
+    *result = NULL;
+    *value_count = 0;
+    *composed = false;
+    if (!cg_parse_paren_call(expression, &callee, &args, &arg_count)) {
+        return 0;
+    }
+    macro_template = find_fn_init_template(templates, template_count, callee);
+    if (!macro_template) {
+        free(callee);
+        cg_free_cstr_array(args, arg_count);
+        return 0;
+    }
+    if (!macro_template->variadic &&
+        arg_count != macro_template->param_count) {
+        cg_set_error(error, error_size,
+                     "line %zu: initializer macro %s expects %zu argument(s)",
+                     line_number, callee, macro_template->param_count);
+        free(callee);
+        cg_free_cstr_array(args, arg_count);
+        return -1;
+    }
+    resolved_args = calloc(arg_count, sizeof(*resolved_args));
+    if (!resolved_args) {
+        free(callee);
+        cg_free_cstr_array(args, arg_count);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    for (size_t i = 0; i < arg_count; i++) {
+        if (is_function_meta_param(function, args[i])) {
+            if (check_param_value_use(
+                    (const char **) function->params, function->param_requires,
+                    function->param_count, args[i], line_number, error,
+                    error_size) != 0) {
+                free(callee);
+                cg_free_cstr_array(args, arg_count);
+                cg_free_cstr_array(resolved_args, i);
+                return -1;
+            }
+            resolved_args[i] = strdup(args[i]);
+        } else {
+            resolved_args[i] = transform_function_expression(
+                args[i], function, symbols, symbol_count, module, header_deps,
+                header_deps_count, header_deps_capacity, line_number, error,
+                error_size);
+        }
+        if (!resolved_args[i]) {
+            free(callee);
+            cg_free_cstr_array(args, arg_count);
+            cg_free_cstr_array(resolved_args, i);
+            return -1;
+        }
+    }
+    if (cg_module_require_include(module, macro_template->header, header_deps,
+                                  header_deps_count,
+                                  header_deps_capacity) != 0) {
+        free(callee);
+        cg_free_cstr_array(args, arg_count);
+        cg_free_cstr_array(resolved_args, arg_count);
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    if (expand) {
+        for (size_t i = 0; i < arg_count; i++) {
+            if (!append_initializer_value(result, resolved_args[i])) {
+                free(callee);
+                cg_free_cstr_array(args, arg_count);
+                cg_free_cstr_array(resolved_args, arg_count);
+                free(*result);
+                *result = NULL;
+                cg_set_error(error, error_size, "out of memory");
+                return -1;
+            }
+            (*value_count)++;
+        }
+        *composed = false;
+    } else {
+        *result = build_macro_call_expression(macro_template->c_name,
+                                              resolved_args, arg_count);
+        if (!*result) {
+            free(callee);
+            cg_free_cstr_array(args, arg_count);
+            cg_free_cstr_array(resolved_args, arg_count);
+            cg_set_error(error, error_size, "out of memory");
+            return -1;
+        }
+        *value_count = arg_count;
+        *composed = true;
+    }
+    free(callee);
+    cg_free_cstr_array(args, arg_count);
+    cg_free_cstr_array(resolved_args, arg_count);
+    return 1;
+}
+
 static int transform_inline_initializer(
     const char *expression, FunctionOutput *function, Symbol *symbols,
     size_t symbol_count, ModuleOutput *module, HeaderDeps **header_deps,
@@ -3423,6 +3599,20 @@ static int finalize_function_body(
                                error_size);
 }
 
+static int close_function_and_remember(
+    FunctionOutput *output, StructOutput *struct_owner,
+    FnInitMacroTemplate **templates, size_t *template_count,
+    size_t *template_capacity, Symbol *symbols, size_t symbol_count,
+    ModuleOutput *module, char *error, size_t error_size)
+{
+    if (remember_fn_init_macro(templates, template_count, template_capacity,
+                               symbols, symbol_count, output, module) != 0) {
+        cg_set_error(error, error_size, "out of memory");
+        return -1;
+    }
+    return cg_close_function(output, struct_owner, error, error_size);
+}
+
 static void reset_compiler_attributes(size_t *attribute_count,
                                        bool *attribute_noscope,
                                        bool *attribute_public,
@@ -3466,6 +3656,9 @@ int cgem_compile(FILE *input, const char *include_path,
     StructTemplate *struct_templates = NULL;
     size_t struct_template_count = 0;
     size_t struct_template_capacity = 0;
+    FnInitMacroTemplate *fn_init_templates = NULL;
+    size_t fn_init_template_count = 0;
+    size_t fn_init_template_capacity = 0;
     FunctionOutput function_output = {0};
     Symbol *symbols = NULL;
     size_t symbol_count = 0;
@@ -3779,11 +3972,13 @@ int cgem_compile(FILE *input, const char *include_path,
                     line_number, error, error_size) != 0) {
                 goto done;
             }
-            if (cg_close_function(
+            if (close_function_and_remember(
                     &function_output,
                     struct_output.active && function_output.is_method
                         ? &struct_output
                         : NULL,
+                    &fn_init_templates, &fn_init_template_count,
+                    &fn_init_template_capacity, symbols, symbol_count, &module,
                     error, error_size) != 0) {
                 goto done;
             }
@@ -3822,6 +4017,16 @@ int cgem_compile(FILE *input, const char *include_path,
                     block_attribute = kind;
                     block_attribute_indent = indent;
                     block_attribute_values = 0;
+                    continue;
+                }
+                if (strcmp(line + indent, "@expand") == 0) {
+                    if (function_output.return_initializer_expand) {
+                        cg_set_error(error, error_size,
+                                  "line %zu: @expand specified more than once",
+                                  line_number);
+                        goto done;
+                    }
+                    function_output.return_initializer_expand = true;
                     continue;
                 }
             }
@@ -4339,6 +4544,27 @@ int cgem_compile(FILE *input, const char *include_path,
                           line_number);
                 goto done;
             }
+            if (return_expr && strncmp(return_expr, "@expand ", 8) == 0) {
+                size_t stripped_length = strlen(return_expr + 8);
+
+                while (stripped_length > 0 &&
+                       return_expr[8 + stripped_length - 1] == ' ') {
+                    stripped_length--;
+                }
+                {
+                    char *stripped =
+                        cg_copy_text(return_expr + 8, stripped_length);
+
+                    free(return_expr);
+                    return_expr = stripped;
+                    if (!return_expr) {
+                        cg_free_field_type(&cast_type);
+                        cg_set_error(error, error_size, "out of memory");
+                        goto done;
+                    }
+                }
+                function_output.return_initializer_expand = true;
+            }
             if (cast_type.name) {
                 cast_c_type = resolve_c_field_type(
                     &cast_type, symbols, symbol_count, &module, &header_deps,
@@ -4408,12 +4634,44 @@ int cgem_compile(FILE *input, const char *include_path,
                     free(return_expr);
                     return_expr = transformed_return;
                     function_output.return_is_initializer = true;
+                    function_output.return_is_composed_macro = false;
                     function_output.return_is_call = false;
                     function_output.return_expr = return_expr;
                     function_output.return_cast_type = cast_c_type;
                     function_output.has_return = true;
                     cg_free_field_type(&cast_type);
                     continue;
+                }
+                {
+                    bool composed_macro = false;
+                    int composed_call = transform_composed_initializer(
+                        return_expr, &function_output, fn_init_templates,
+                        fn_init_template_count, symbols, symbol_count, &module,
+                        &header_deps, &header_deps_count,
+                        &header_deps_capacity,
+                        function_output.return_initializer_expand, line_number,
+                        &transformed_return,
+                        &function_output.initializer_value_count,
+                        &composed_macro, error, error_size);
+
+                    if (composed_call < 0) {
+                        free(return_expr);
+                        free(cast_c_type);
+                        cg_free_field_type(&cast_type);
+                        goto done;
+                    }
+                    if (composed_call > 0) {
+                        free(return_expr);
+                        return_expr = transformed_return;
+                        function_output.return_is_initializer = true;
+                        function_output.return_is_composed_macro = composed_macro;
+                        function_output.return_is_call = false;
+                        function_output.return_expr = return_expr;
+                        function_output.return_cast_type = cast_c_type;
+                        function_output.has_return = true;
+                        cg_free_field_type(&cast_type);
+                        continue;
+                    }
                 }
                 if (cg_parse_paren_call(return_expr, &call_callee, &call_args,
                                      &call_arg_count)) {
@@ -4505,11 +4763,13 @@ int cgem_compile(FILE *input, const char *include_path,
                 goto done;
             }
             if (function_output.active && function_output.is_method &&
-                cg_close_function(
+                close_function_and_remember(
                     &function_output,
                     struct_output.active && function_output.is_method
                         ? &struct_output
                         : NULL,
+                    &fn_init_templates, &fn_init_template_count,
+                    &fn_init_template_capacity, symbols, symbol_count, &module,
                     error, error_size) != 0) {
                 goto done;
             }
@@ -6788,11 +7048,13 @@ int cgem_compile(FILE *input, const char *include_path,
                                error_size) != 0) {
         goto done;
     }
-    if (cg_close_function(
+    if (close_function_and_remember(
             &function_output,
             struct_output.active && function_output.is_method ? &struct_output
-                                                             : NULL,
-            error, error_size) != 0) {
+                                                               : NULL,
+            &fn_init_templates, &fn_init_template_count,
+            &fn_init_template_capacity, symbols, symbol_count, &module, error,
+            error_size) != 0) {
         goto done;
     }
     if (struct_output.active) {
@@ -6822,6 +7084,12 @@ done:
         free_struct_template(&struct_templates[i]);
     }
     free(struct_templates);
+    for (size_t i = 0; i < fn_init_template_count; i++) {
+        free(fn_init_templates[i].dsl_name);
+        free(fn_init_templates[i].c_name);
+        free(fn_init_templates[i].header);
+    }
+    free(fn_init_templates);
     cg_free_names(cleaned_packages, cleaned_package_count);
     free(if_frames);
     if (cg_close_module(&module, header_deps, header_deps_count,

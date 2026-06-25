@@ -480,6 +480,32 @@ fn module:
     return c.initializer(values)
 ```
 
+Parameterized `fn module` macros can compose other initializer macros by
+returning a call instead of `c.initializer(...)`. By default the nested macro
+call is preserved:
+
+```text
+fn module:
+    param lower_value
+    param upper_value
+    return lh.initializer(lower_value, upper_value)
+```
+
+This generates:
+
+```c
+#define lh_interval_bounds_initializer(lower_value, upper_value) \
+    lh_initializer(lower_value, upper_value)
+```
+
+Add `@expand` on the line before `return`, or write `return @expand callee(...)`,
+to inline the composed initializer to `{ ... }` instead:
+
+```text
+@expand
+return lh.initializer(lower_value, upper_value)
+```
+
 The former `return c.initializer:` block form is not supported.
 
 Function parameter kinds determine how a function is emitted. Parameters with

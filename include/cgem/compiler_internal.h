@@ -182,6 +182,14 @@ typedef struct {
 } StructTemplate;
 
 typedef struct {
+    char *dsl_name;
+    char *c_name;
+    char *header;
+    size_t param_count;
+    bool variadic;
+} FnInitMacroTemplate;
+
+typedef struct {
     char *name;
     bool is_ptr;
     bool is_param_ref;
@@ -228,6 +236,8 @@ typedef struct {
     bool param_pointer_pending;
     bool local_pointer_pending;
     bool return_is_initializer;
+    bool return_is_composed_macro;
+    bool return_initializer_expand;
     size_t initializer_value_count;
     bool is_initializer;
     char *call_block_method;

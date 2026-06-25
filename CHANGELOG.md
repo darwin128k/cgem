@@ -33,6 +33,10 @@ Release notes on GitHub are taken from the section that matches the tag
   example `lh.pair.fields(type, type)` after `param type`); emits a nested C
   macro call by default, supports `@expand` for inline fields, and registers the
   expanded layout for `@require(type as <struct>)`.
+- Initializer-macro composition inside parameterized `fn module:` templates (for
+  example `return lh.initializer(lower_value, upper_value)`); preserves the
+  nested macro call by default, supports `@expand` before `return` or
+  `return @expand callee(...)` to emit `{ ... }` directly.
 - IDE syntax highlighting for `type`, `value`, and `as` inside `@require(...)`.
 
 ### Changed

@@ -3839,6 +3839,75 @@ static size_t scan_attrs_before(const Row *row, size_t before_at,
     return at;
 }
 
+static void scan_line_attributes(const Row *row, size_t line_first,
+                                 BodyHighlightSpan *spans, size_t *count)
+{
+    for (size_t at = line_first; at < row->length; at++) {
+        size_t name_start;
+        size_t name_end;
+
+        if (row->data[at] != '@') {
+            continue;
+        }
+        if (at > line_first &&
+            cg_name_char((unsigned char) row->data[at - 1])) {
+            continue;
+        }
+        name_start = at + 1;
+        if (name_start >= row->length ||
+            !cg_name_start((unsigned char) row->data[name_start])) {
+            continue;
+        }
+        name_end = skip_identifier(row, name_start);
+        body_highlight_add(spans, count, at, name_end, BODY_HL_BUILTIN);
+    }
+}
+
+static void scan_param_as_clause(const Row *row, size_t line_first,
+                                 BodyHighlightSpan *spans, size_t *count)
+{
+    size_t at = line_first;
+
+    if (!row_word_at(row, at, "param")) {
+        return;
+    }
+    body_highlight_add(spans, count, at, at + 5, BODY_HL_KEYWORD);
+    at += 5;
+    while (at < row->length && row->data[at] == ' ') {
+        at++;
+    }
+    if (at < row->length &&
+        cg_name_start((unsigned char) row->data[at])) {
+        size_t name_start = at;
+
+        at = skip_identifier(row, at);
+        body_highlight_add(spans, count, name_start, at, BODY_HL_NAME);
+    }
+    while (at < row->length && row->data[at] == ' ') {
+        at++;
+    }
+    if (at + 2 <= row->length && memcmp(row->data + at, "as", 2) == 0 &&
+        (at + 2 == row->length || row->data[at + 2] == ' ')) {
+        body_highlight_add(spans, count, at, at + 2, BODY_HL_KEYWORD);
+        at += 2;
+        while (at < row->length && row->data[at] == ' ') {
+            at++;
+        }
+        if (at < row->length &&
+            (cg_name_start((unsigned char) row->data[at]) ||
+             row->data[at] == '.')) {
+            size_t type_start = at;
+
+            while (at < row->length &&
+                   (cg_name_char((unsigned char) row->data[at]) ||
+                    row->data[at] == '.')) {
+                at++;
+            }
+            body_highlight_add(spans, count, type_start, at, BODY_HL_NAME);
+        }
+    }
+}
+
 static void scan_inline_param_clauses(const Row *row, size_t line_first,
                                       BodyHighlightSpan *spans, size_t *count)
 {
@@ -3944,6 +4013,7 @@ static void scan_body_line_highlights(const Row *row, size_t line_first,
             *function_start = at;
             at = skip_identifier(row, at);
             *function_end = at;
+            body_highlight_add(spans, count, line_first, at, BODY_HL_NAME);
             while (at < row->length && row->data[at] == ' ') {
                 at++;
             }
@@ -3953,6 +4023,8 @@ static void scan_body_line_highlights(const Row *row, size_t line_first,
         }
     }
 
+    scan_line_attributes(row, line_first, spans, count);
+    scan_param_as_clause(row, line_first, spans, count);
     scan_assignment_operators(row, line_first, spans, count);
     scan_inline_param_clauses(row, line_first, spans, count);
 }
@@ -4153,6 +4225,17 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                     at++;
                 }
                 name_end = at;
+            }
+            while (at < row->length && row->data[at] == ' ') {
+                at++;
+            }
+            if (row->length - at >= 2 &&
+                memcmp(row->data + at, "as", 2) == 0 &&
+                (at + 2 == row->length || row->data[at + 2] == ' ')) {
+                at = highlight_declaration_as_clause(
+                    row, at, &second_keyword_start, &second_keyword_end,
+                    &third_keyword_start, &third_keyword_end, &type_start,
+                    &type_end, &colon);
             }
         } else {
             if (at < row->length &&

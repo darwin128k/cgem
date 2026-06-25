@@ -268,6 +268,9 @@ typedef struct {
     StructField *fields;
     size_t field_count;
     size_t field_capacity;
+    StructField *registry_fields;
+    size_t registry_field_count;
+    size_t registry_field_capacity;
     StructKnownField *known_fields;
     size_t known_field_count;
     size_t known_field_capacity;

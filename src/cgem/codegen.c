@@ -170,6 +170,12 @@ void cg_clear_struct(StructOutput *output)
         free(output->fields[i].doc);
     }
     free(output->fields);
+    for (size_t i = 0; i < output->registry_field_count; i++) {
+        free(output->registry_fields[i].name);
+        free(output->registry_fields[i].type);
+        free(output->registry_fields[i].doc);
+    }
+    free(output->registry_fields);
     for (size_t i = 0; i < output->known_field_count; i++) {
         free(output->known_fields[i].name);
     }
@@ -312,10 +318,10 @@ int cg_close_struct(StructOutput *output, char *error, size_t error_size)
             goto done;
         }
     }
-    if (output->field_count == 0) {
-        if (cg_module_body_printf(output->module, ")\n") != 0) {
-            result = -1;
-        }
+    if (output->field_count == 0 && output->macro_line_count == 0) {
+        snprintf(error, error_size,
+                 "parameterized struct macro has no body");
+        result = -1;
         goto done;
     }
     if (cg_module_body_printf(output->module, ") \\\n") != 0) {
@@ -338,7 +344,19 @@ int cg_close_struct(StructOutput *output, char *error, size_t error_size)
         }
         if (cg_module_body_printf(
                 output->module, "%s\n",
-                i + 1 < output->field_count ? "; \\" : "") != 0) {
+                i + 1 < output->field_count || output->macro_line_count > 0
+                    ? "; \\"
+                    : "") != 0) {
+            result = -1;
+            goto done;
+        }
+    }
+    for (size_t i = 0; i < output->macro_line_count; i++) {
+        if (cg_module_body_printf(output->module, "    %s%s\n",
+                                  output->macro_lines[i].expr,
+                                  i + 1 < output->macro_line_count ? "; \\"
+                                                                     : "") !=
+            0) {
             result = -1;
             goto done;
         }

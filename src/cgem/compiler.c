@@ -2832,14 +2832,14 @@ static int save_struct_template(StructTemplate **templates, size_t *count,
             }
         }
     }
-    entry.field_count = output->field_count;
+    entry.field_count = output->field_count + output->registry_field_count;
     if (entry.field_count) {
         entry.fields = calloc(entry.field_count, sizeof(*entry.fields));
         if (!entry.fields) {
             free_struct_template(&entry);
             return -1;
         }
-        for (size_t i = 0; i < entry.field_count; i++) {
+        for (size_t i = 0; i < output->field_count; i++) {
             entry.fields[i].name = strdup(output->fields[i].name);
             entry.fields[i].type = strdup(output->fields[i].type);
             entry.fields[i].is_mutable = output->fields[i].is_mutable;
@@ -2847,6 +2847,23 @@ static int save_struct_template(StructTemplate **templates, size_t *count,
                                       ? strdup(output->fields[i].doc)
                                       : NULL;
             if (!entry.fields[i].name || !entry.fields[i].type) {
+                free_struct_template(&entry);
+                return -1;
+            }
+        }
+        for (size_t i = 0; i < output->registry_field_count; i++) {
+            size_t at = output->field_count + i;
+
+            entry.fields[at].name =
+                strdup(output->registry_fields[i].name);
+            entry.fields[at].type =
+                strdup(output->registry_fields[i].type);
+            entry.fields[at].is_mutable =
+                output->registry_fields[i].is_mutable;
+            entry.fields[at].doc = output->registry_fields[i].doc
+                                       ? strdup(output->registry_fields[i].doc)
+                                       : NULL;
+            if (!entry.fields[at].name || !entry.fields[at].type) {
                 free_struct_template(&entry);
                 return -1;
             }
@@ -2882,6 +2899,30 @@ static char *resolve_struct_type_argument(
         return NULL;
     }
     return strdup(symbol->c_name);
+}
+
+static bool is_struct_meta_param(const StructOutput *output, const char *name)
+{
+    for (size_t i = 0; i < output->param_count; i++) {
+        if (strcmp(output->params[i], name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static char *resolve_struct_macro_argument(
+    const char *argument, const StructOutput *output, size_t line_number,
+    Symbol *symbols, size_t symbol_count, ModuleOutput *module,
+    HeaderDeps **header_deps, size_t *header_deps_count,
+    size_t *header_deps_capacity, char *error, size_t error_size)
+{
+    if (is_struct_meta_param(output, argument)) {
+        return strdup(argument);
+    }
+    return resolve_struct_type_argument(
+        argument, line_number, symbols, symbol_count, module, header_deps,
+        header_deps_count, header_deps_capacity, error, error_size);
 }
 
 static char *build_macro_call_expression(const char *c_name, char **args,
@@ -2931,9 +2972,10 @@ static int append_struct_macro_line(StructOutput *output, const char *expr)
     return 0;
 }
 
-static int expand_struct_macro_fields(
-    StructOutput *output, const StructTemplate *template, char **resolved_args,
-    bool all_mutable, char *error, size_t error_size)
+static int expand_struct_macro_fields_into(
+    StructField **fields, size_t *field_count, size_t *field_capacity,
+    const StructTemplate *template, char **resolved_args, bool all_mutable,
+    char *error, size_t error_size)
 {
     for (size_t i = 0; i < template->field_count; i++) {
         const char *c_type = template->fields[i].type;
@@ -2953,11 +2995,11 @@ static int expand_struct_macro_fields(
             cg_set_error(error, error_size, "out of memory");
             return -1;
         }
-        if (output->field_count == output->field_capacity) {
-            size_t capacity = output->field_capacity ? output->field_capacity * 2
-                                                     : 4;
-            StructField *grown = realloc(
-                output->fields, capacity * sizeof(*output->fields));
+        if (*field_count == *field_capacity) {
+            size_t capacity =
+                *field_capacity ? *field_capacity * 2 : 4;
+            StructField *grown =
+                realloc(*fields, capacity * sizeof(*grown));
 
             if (!grown) {
                 free(field_name);
@@ -2965,17 +3007,37 @@ static int expand_struct_macro_fields(
                 cg_set_error(error, error_size, "out of memory");
                 return -1;
             }
-            output->fields = grown;
-            output->field_capacity = capacity;
+            *fields = grown;
+            *field_capacity = capacity;
         }
-        output->fields[output->field_count++] = (StructField) {
+        (*fields)[(*field_count)++] = (StructField) {
             field_name,
             resolved_type,
-            all_mutable || template->all_mutable || template->fields[i].is_mutable,
+            all_mutable || template->all_mutable ||
+                template->fields[i].is_mutable,
             template->fields[i].doc ? strdup(template->fields[i].doc) : NULL
         };
     }
     return 0;
+}
+
+static int expand_struct_macro_fields(
+    StructOutput *output, const StructTemplate *template, char **resolved_args,
+    bool all_mutable, char *error, size_t error_size)
+{
+    return expand_struct_macro_fields_into(
+        &output->fields, &output->field_count, &output->field_capacity,
+        template, resolved_args, all_mutable, error, error_size);
+}
+
+static int expand_struct_macro_registry_fields(
+    StructOutput *output, const StructTemplate *template, char **resolved_args,
+    bool all_mutable, char *error, size_t error_size)
+{
+    return expand_struct_macro_fields_into(
+        &output->registry_fields, &output->registry_field_count,
+        &output->registry_field_capacity, template, resolved_args, all_mutable,
+        error, error_size);
 }
 
 static int finalize_struct(
@@ -2988,6 +3050,13 @@ static int finalize_struct(
         return 0;
     }
     if (output->param_count > 0) {
+        if (output->field_count == 0 && output->macro_line_count == 0 &&
+            output->registry_field_count == 0) {
+            cg_set_error(error, error_size,
+                         "parameterized struct requires at least one field or "
+                         "field macro");
+            return -1;
+        }
         if (save_struct_template(templates, template_count, template_capacity,
                                  output) != 0) {
             cg_set_error(error, error_size, "out of memory");
@@ -4647,16 +4716,8 @@ int cgem_compile(FILE *input, const char *include_path,
                                         &macro_arg_count)) {
                     StructTemplate *macro_template;
                     char **resolved_args = NULL;
+                    bool parameterized = struct_output.param_count > 0;
 
-                    if (struct_output.param_count > 0) {
-                        cg_set_error(error, error_size,
-                                  "line %zu: macro invocation is not allowed "
-                                  "in parameterized struct",
-                                  line_number);
-                        free(macro_callee);
-                        cg_free_cstr_array(macro_args, macro_arg_count);
-                        goto done;
-                    }
                     if (struct_output.pending_param_require) {
                         cg_set_error(error, error_size,
                                   "line %zu: @require must precede param",
@@ -4690,6 +4751,9 @@ int cgem_compile(FILE *input, const char *include_path,
                             &macro_template->param_requires[i];
 
                         if (req->constraint_dsl &&
+                            !(parameterized &&
+                              is_struct_meta_param(&struct_output,
+                                                   macro_args[i])) &&
                             !dsl_type_satisfies_require_constraint(
                                 macro_args[i], req->constraint_dsl, symbols,
                                 symbol_count, struct_templates,
@@ -4708,10 +4772,11 @@ int cgem_compile(FILE *input, const char *include_path,
                         goto done;
                     }
                     for (size_t i = 0; i < macro_arg_count; i++) {
-                        resolved_args[i] = resolve_struct_type_argument(
-                            macro_args[i], line_number, symbols, symbol_count,
-                            &module, &header_deps, &header_deps_count,
-                            &header_deps_capacity, error, error_size);
+                        resolved_args[i] = resolve_struct_macro_argument(
+                            macro_args[i], &struct_output, line_number, symbols,
+                            symbol_count, &module, &header_deps,
+                            &header_deps_count, &header_deps_capacity, error,
+                            error_size);
                         if (!resolved_args[i]) {
                             free(macro_callee);
                             cg_free_cstr_array(macro_args, macro_arg_count);
@@ -4719,9 +4784,20 @@ int cgem_compile(FILE *input, const char *include_path,
                             goto done;
                         }
                     }
-                    if (register_struct_template_fields(&struct_output,
+                    if (!parameterized &&
+                        register_struct_template_fields(&struct_output,
                                                         macro_template, error,
                                                         error_size) != 0) {
+                        free(macro_callee);
+                        cg_free_cstr_array(macro_args, macro_arg_count);
+                        cg_free_cstr_array(resolved_args, macro_arg_count);
+                        goto done;
+                    }
+                    if (parameterized && !macro_expand &&
+                        expand_struct_macro_registry_fields(
+                            &struct_output, macro_template, resolved_args,
+                            struct_output.all_mutable, error,
+                            error_size) != 0) {
                         free(macro_callee);
                         cg_free_cstr_array(macro_args, macro_arg_count);
                         cg_free_cstr_array(resolved_args, macro_arg_count);

@@ -58,16 +58,15 @@ package lh:
     @doc:
         "Reusable structure field macros."
     package pair:
-        package bounds:
-            module fields:
-                @doc:
-                    "A pair of typed values."
-                @mutable
-                struct module:
-                    @doc("Type of the first value.")
-                    field first as param first_type
-                    @doc("Type of the second value.")
-                    field second as param second_type
+        module fields:
+            @doc:
+                "A pair of typed values."
+            @mutable
+            struct module:
+                @doc("Type of the first value.")
+                field first as param first_type
+                @doc("Type of the second value.")
+                field second as param second_type
 
     @doc:
         "C integer type aliases and fixed-width names."
@@ -148,10 +147,8 @@ package lh:
                 @doc:
                     "Half-open interval with typed lower and upper bounds."
                 struct module:
-                    @doc("Lower bound (inclusive).")
-                    field lower as param lower_type
-                    @doc("Upper bound (exclusive).")
-                    field upper as param upper_type
+                    param type
+                    lh.pair.fields(type, type)
 
         module flags:
             enum module as lh.byte:

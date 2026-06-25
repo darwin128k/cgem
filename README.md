@@ -894,6 +894,29 @@ This generates:
     second_type second
 ```
 
+Parameterized struct templates can compose other field macros. Arguments may be
+metaparameters of the outer template or concrete DSL types:
+
+```text
+package interval:
+    package bounds:
+        module fields:
+            struct module:
+                param type
+                lh.pair.fields(type, type)
+```
+
+This generates:
+
+```c
+#define lh_interval_bounds_fields(type) \
+    lh_pair_fields(type, type)
+```
+
+The composed layout is registered for `@require(type as <struct>)` even when
+the C output keeps the nested macro call. Add `@expand` before the invocation
+to inline the nested fields into the outer `#define` instead.
+
 Template structure fields can also use `@pointer`:
 
 ```text

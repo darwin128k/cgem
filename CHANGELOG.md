@@ -29,6 +29,10 @@ Release notes on GitHub are taken from the section that matches the tag
   the point of use (`self.field = param …`, `self.field =? param …`,
   `@pointer @mutable param … ?= rhs`); lowers to the same C signature and body
   as separate `param` lines.
+- Field-macro composition inside parameterized `struct module:` templates (for
+  example `lh.pair.fields(type, type)` after `param type`); emits a nested C
+  macro call by default, supports `@expand` for inline fields, and registers the
+  expanded layout for `@require(type as <struct>)`.
 - IDE syntax highlighting for `type`, `value`, and `as` inside `@require(...)`.
 
 ### Changed

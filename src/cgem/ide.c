@@ -2253,18 +2253,56 @@ static void move_cursor(int key)
 }
 
 #define STICKY_SCROLL_MAX 5
+#define EDITOR_EOF_SCROLL_PADDING 1
 #define CALL_PUNCTUATION_MAX 4
+
+typedef struct {
+    size_t sticky_rows;
+    int scroll_rows;
+    size_t max_offset;
+} EditorScrollGeom;
 
 typedef struct {
     size_t rows[STICKY_SCROLL_MAX];
     size_t count;
 } StickyScroll;
 
+static size_t prepare_sticky_scroll(size_t first_visible, int content_rows,
+                                    StickyScroll *sticky);
+static void collect_sticky_scroll(size_t before_row, StickyScroll *sticky);
+
+static EditorScrollGeom editor_scroll_geometry(size_t row_offset, int content_rows)
+{
+    StickyScroll sticky;
+    EditorScrollGeom geom;
+    size_t scroll_span = editor.row_count + EDITOR_EOF_SCROLL_PADDING;
+
+    geom.sticky_rows = prepare_sticky_scroll(row_offset, content_rows, &sticky);
+    geom.scroll_rows = content_rows - (int) geom.sticky_rows;
+    if (geom.scroll_rows < 1) {
+        geom.scroll_rows = 1;
+    }
+    if (scroll_span <= (size_t) geom.scroll_rows) {
+        geom.max_offset = 0;
+    } else {
+        geom.max_offset = scroll_span - (size_t) geom.scroll_rows;
+    }
+    return geom;
+}
+
+static void clamp_row_offset(int content_rows)
+{
+    EditorScrollGeom geom =
+        editor_scroll_geometry(editor.row_offset, content_rows);
+
+    if (editor.row_offset > geom.max_offset) {
+        editor.row_offset = geom.max_offset;
+    }
+}
+
 static int gutter_width(void);
 static int editor_screen_top(void);
 static int editor_content_rows(void);
-static size_t prepare_sticky_scroll(size_t first_visible, int content_rows,
-                                    StickyScroll *sticky);
 
 static bool move_cursor_to_screen(int row, int col)
 {
@@ -2272,9 +2310,8 @@ static bool move_cursor_to_screen(int row, int col)
     int gutter = gutter_width();
     int text_row = row - editor_screen_top();
     int text_col = col - gutter - 1;
-    StickyScroll sticky;
-    size_t sticky_rows;
-    int scroll_rows;
+    EditorScrollGeom geom =
+        editor_scroll_geometry(editor.row_offset, content_rows);
     size_t file_row;
     Row *target;
     bool sticky_click = false;
@@ -2282,23 +2319,21 @@ static bool move_cursor_to_screen(int row, int col)
     if (content_rows < 1) {
         content_rows = 1;
     }
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
     if (text_row < 0 || text_col < 0) {
         return false;
     }
-    if (text_row < (int) sticky_rows) {
+    if (text_row < (int) geom.sticky_rows) {
+        StickyScroll sticky;
+
+        collect_sticky_scroll(editor.row_offset, &sticky);
         if ((size_t) text_row >= sticky.count) {
             return false;
         }
         file_row = sticky.rows[text_row];
         sticky_click = true;
     } else {
-        text_row -= (int) sticky_rows;
-        if (text_row >= scroll_rows) {
+        text_row -= (int) geom.sticky_rows;
+        if (text_row >= geom.scroll_rows) {
             return false;
         }
         file_row = editor.row_offset + (size_t) text_row;
@@ -2327,50 +2362,16 @@ static void update_selection_active(void)
         editor.selection_anchor_x != editor.cursor_x;
 }
 
-static void clamp_row_offset(int content_rows)
-{
-    StickyScroll sticky;
-    size_t sticky_rows;
-    int scroll_rows;
-    size_t max_offset;
-
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
-    if (editor.row_count <= (size_t) scroll_rows) {
-        max_offset = 0;
-    } else {
-        max_offset = editor.row_count - (size_t) scroll_rows;
-    }
-    if (editor.row_offset > max_offset) {
-        editor.row_offset = max_offset;
-    }
-}
-
 static void scroll_editor_by_lines(int lines)
 {
     int content_rows = editor_content_rows();
-    StickyScroll sticky;
-    size_t sticky_rows;
-    int scroll_rows;
-    size_t max_offset;
+    EditorScrollGeom geom;
 
     if (lines == 0) {
         return;
     }
     editor.follow_cursor = false;
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
-    if (editor.row_count <= (size_t) scroll_rows) {
-        max_offset = 0;
-    } else {
-        max_offset = editor.row_count - (size_t) scroll_rows;
-    }
+    geom = editor_scroll_geometry(editor.row_offset, content_rows);
     if (lines < 0) {
         size_t up = (size_t) (-lines);
 
@@ -2379,8 +2380,8 @@ static void scroll_editor_by_lines(int lines)
     } else {
         size_t down = (size_t) lines;
 
-        if (editor.row_offset + down > max_offset) {
-            editor.row_offset = max_offset;
+        if (editor.row_offset + down > geom.max_offset) {
+            editor.row_offset = geom.max_offset;
         } else {
             editor.row_offset += down;
         }
@@ -2391,24 +2392,12 @@ static void scroll_editor_by_lines(int lines)
 static void page_editor(bool up)
 {
     int content_rows = editor_content_rows();
-    StickyScroll sticky;
-    size_t sticky_rows;
-    int scroll_rows;
-    size_t max_offset;
+    EditorScrollGeom geom;
     size_t page;
 
     editor.follow_cursor = false;
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
-    page = (size_t) scroll_rows;
-    if (editor.row_count <= page) {
-        max_offset = 0;
-    } else {
-        max_offset = editor.row_count - page;
-    }
+    geom = editor_scroll_geometry(editor.row_offset, content_rows);
+    page = (size_t) geom.scroll_rows;
 
     if (up) {
         editor.row_offset =
@@ -2419,8 +2408,8 @@ static void page_editor(bool up)
             editor.cursor_y = 0;
         }
     } else {
-        if (editor.row_offset + page > max_offset) {
-            editor.row_offset = max_offset;
+        if (editor.row_offset + page > geom.max_offset) {
+            editor.row_offset = geom.max_offset;
         } else {
             editor.row_offset += page;
         }
@@ -2857,9 +2846,6 @@ static void scroll_to_cursor(void)
     int content_rows = editor_content_rows();
     int available_cols = editor.screen_cols - gutter_width();
     size_t content_cols = available_cols > 1 ? (size_t) available_cols : 1;
-    StickyScroll sticky;
-    size_t sticky_rows;
-    int scroll_rows;
 
     if (!editor.follow_cursor) {
         return;
@@ -2876,27 +2862,33 @@ static void scroll_to_cursor(void)
         }
     }
 
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
+    for (int pass = 0; pass < 8; pass++) {
+        EditorScrollGeom geom =
+            editor_scroll_geometry(editor.row_offset, content_rows);
+        size_t new_offset = editor.row_offset;
 
-    if (editor.cursor_y < editor.row_offset) {
-        editor.row_offset = editor.cursor_y;
-    }
+        if (editor.cursor_y < editor.row_offset) {
+            new_offset = editor.cursor_y;
+        } else if (editor.cursor_y >= editor.row_offset +
+                                        (size_t) geom.scroll_rows) {
+            new_offset = editor.cursor_y - (size_t) geom.scroll_rows + 1;
+        } else if (editor.row_count > 0 &&
+                   editor.cursor_y + 1 == editor.row_count &&
+                   geom.scroll_rows > 1) {
+            size_t preferred = editor.row_count + EDITOR_EOF_SCROLL_PADDING -
+                               (size_t) geom.scroll_rows;
 
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
-    if (editor.cursor_y >= editor.row_offset + (size_t) scroll_rows) {
-        editor.row_offset = editor.cursor_y - (size_t) scroll_rows + 1;
-    }
-
-    sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
-    scroll_rows = content_rows - (int) sticky_rows;
-    if (scroll_rows < 1) {
-        scroll_rows = 1;
-    }
-    if (editor.cursor_y >= editor.row_offset + (size_t) scroll_rows) {
-        editor.row_offset = editor.cursor_y - (size_t) scroll_rows + 1;
+            if (preferred <= geom.max_offset) {
+                new_offset = preferred;
+            }
+        }
+        if (new_offset > geom.max_offset) {
+            new_offset = geom.max_offset;
+        }
+        if (new_offset == editor.row_offset) {
+            break;
+        }
+        editor.row_offset = new_offset;
     }
 
     clamp_row_offset(content_rows);

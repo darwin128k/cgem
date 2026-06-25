@@ -22,6 +22,7 @@
 #include "cgem/format.h"
 #include "cgem/ide.h"
 #include "cgem/ide_index.h"
+#include "cgem/semantic.h"
 #include "cgem/ide_keymap.h"
 #include "cgem/ide_menu.h"
 #include "cgem/platform.h"
@@ -96,8 +97,8 @@ typedef struct {
     char message[160];
     char context_hint[384];
     DiagnosticList diagnostics;
-    IdeIndex index;
-    bool index_dirty;
+    CgemSemantic semantic;
+    bool semantic_dirty;
     bool follow_cursor;
     IdeMenu menu;
     EditorHistory history;
@@ -131,8 +132,7 @@ static bool cursor_inside_string(const Row *row, size_t cursor_x);
 static void set_message(const char *format, ...);
 static void update_context_hint(void);
 static void clear_selection(void);
-static void clear_editor_diagnostics(void);
-static void mark_index_dirty(void);
+static void mark_semantic_dirty(void);
 static bool open_file_path(const char *path);
 static bool save_file_as(const char *path);
 
@@ -246,8 +246,7 @@ static void restore_snapshot(EditorSnapshot *snapshot)
     editor.follow_cursor = true;
     editor.quit_pending = false;
     clear_selection();
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static bool history_step(bool redo)
@@ -326,23 +325,18 @@ static void buffer_printf(Buffer *buffer, const char *format, ...)
     }
 }
 
-static void clear_editor_diagnostics(void)
+static void mark_semantic_dirty(void)
 {
-    cg_diagnostic_clear(&editor.diagnostics);
-}
-
-static void mark_index_dirty(void)
-{
-    editor.index_dirty = true;
+    editor.semantic_dirty = true;
     editor.diff_dirty = true;
 }
 
-static void ensure_index_fresh(void)
+static void ensure_semantic_fresh(void)
 {
     IdeIndexRow *rows;
     size_t i;
 
-    if (!editor.index_dirty) {
+    if (!editor.semantic_dirty) {
         return;
     }
     rows = calloc(editor.row_count, sizeof(*rows));
@@ -357,9 +351,10 @@ static void ensure_index_fresh(void)
         rows[i].data = editor.rows[i].data;
         rows[i].length = editor.rows[i].length;
     }
-    ide_index_rebuild(&editor.index, rows, editor.row_count);
+    cgem_semantic_analyze_rows(rows, editor.row_count, editor.compiler,
+                               &editor.diagnostics, &editor.semantic);
     free(rows);
-    editor.index_dirty = false;
+    editor.semantic_dirty = false;
 }
 
 static bool call_context_callee(const Row *row, size_t cursor, char *callee,
@@ -530,7 +525,7 @@ static const char *lookup_fn_hint(const char *callee)
     IdeIndexRow *rows;
     char scope[256];
 
-    hint = ide_index_fn_hint(&editor.index, callee);
+    hint = cgem_semantic_fn_hint(&editor.semantic, NULL, callee);
     if (hint || editor.row_count == 0) {
         return hint;
     }
@@ -542,9 +537,9 @@ static const char *lookup_fn_hint(const char *callee)
         rows[i].data = editor.rows[i].data;
         rows[i].length = editor.rows[i].length;
     }
-    if (ide_index_scope_path(rows, editor.row_count, editor.cursor_y, scope,
-                             sizeof(scope))) {
-        hint = ide_index_fn_hint_scoped(&editor.index, scope, callee);
+    if (cgem_semantic_scope_path(rows, editor.row_count, editor.cursor_y, scope,
+                                 sizeof(scope))) {
+        hint = cgem_semantic_fn_hint(&editor.semantic, scope, callee);
     }
     free(rows);
     return hint;
@@ -1071,8 +1066,7 @@ static void insert_char(char ch)
             editor.cursor_x++;
             editor.dirty = true;
             editor.quit_pending = false;
-            clear_editor_diagnostics();
-            mark_index_dirty();
+            mark_semantic_dirty();
             return;
         }
     }
@@ -1082,16 +1076,14 @@ static void insert_char(char ch)
         editor.cursor_x++;
         editor.dirty = true;
         editor.quit_pending = false;
-        clear_editor_diagnostics();
-        mark_index_dirty();
+        mark_semantic_dirty();
         return;
     }
     row_insert_char(row, editor.cursor_x, ch);
     editor.cursor_x++;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static size_t leading_spaces(const Row *row)
@@ -1373,14 +1365,15 @@ static const char *index_completion_ghost(const Row *row, size_t row_index,
             rows[i].data = editor.rows[i].data;
             rows[i].length = editor.rows[i].length;
         }
-        if (ide_index_scope_path(rows, row_count, row_index, scope,
-                                 sizeof(scope))) {
-            suffix = ide_index_scoped_ghost_suffix(&editor.index, scope,
-                                                   completion_token,
-                                                   completion_length);
+        if (cgem_semantic_scope_path(rows, row_count, row_index, scope,
+                                     sizeof(scope))) {
+            suffix = cgem_semantic_ghost_suffix(&editor.semantic, scope,
+                                                completion_token,
+                                                completion_length);
         } else {
-            suffix = ide_index_ghost_suffix(&editor.index, completion_token,
-                                            completion_length);
+            suffix = cgem_semantic_ghost_suffix(&editor.semantic, NULL,
+                                                completion_token,
+                                                completion_length);
         }
         if (suffix && suffix[0] != '\0') {
             return suffix;
@@ -1389,8 +1382,8 @@ static const char *index_completion_ghost(const Row *row, size_t row_index,
     }
     {
         const char *suffix =
-            ide_index_ghost_suffix(&editor.index, completion_token,
-                                   completion_length);
+            cgem_semantic_ghost_suffix(&editor.semantic, NULL, completion_token,
+                                       completion_length);
 
         if (suffix && suffix[0] != '\0') {
             return suffix;
@@ -1605,8 +1598,7 @@ static bool accept_keyword_hint(void)
     editor.cursor_x = insert_at + length;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
     return true;
 }
 
@@ -1633,8 +1625,7 @@ static void remove_indent(void)
     editor.cursor_x = editor.cursor_x > remove ? editor.cursor_x - remove : 0;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void indent_selection(void)
@@ -1689,8 +1680,7 @@ static void indent_selection(void)
     }
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void unindent_selection(void)
@@ -1736,8 +1726,7 @@ static void unindent_selection(void)
     }
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void insert_newline(void)
@@ -1777,8 +1766,7 @@ static void insert_newline(void)
     editor.cursor_x = indent;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void insert_newline_plain(void)
@@ -1798,8 +1786,7 @@ static void insert_newline_plain(void)
     editor.cursor_x = 0;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void delete_char(void)
@@ -1828,8 +1815,7 @@ static void delete_char(void)
             editor.cursor_x--;
             editor.dirty = true;
             editor.quit_pending = false;
-            clear_editor_diagnostics();
-            mark_index_dirty();
+            mark_semantic_dirty();
             return;
         }
         if (editor.cursor_x < row->length &&
@@ -1844,8 +1830,7 @@ static void delete_char(void)
             editor.cursor_x--;
             editor.dirty = true;
             editor.quit_pending = false;
-            clear_editor_diagnostics();
-            mark_index_dirty();
+            mark_semantic_dirty();
             return;
         }
         if (editor.cursor_x <= leading_spaces(row)) {
@@ -1869,8 +1854,7 @@ static void delete_char(void)
     }
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static void delete_char_forward(void)
@@ -1900,8 +1884,7 @@ static void delete_char_forward(void)
     }
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static int gutter_width(void);
@@ -3132,8 +3115,7 @@ static void delete_selection(void)
     editor.cursor_x = start_x;
     editor.dirty = true;
     editor.quit_pending = false;
-    clear_editor_diagnostics();
-    mark_index_dirty();
+    mark_semantic_dirty();
 }
 
 static bool copy_selection(void)
@@ -3392,7 +3374,7 @@ static bool span_is_dotted_reference(const Row *row, size_t at, size_t *start,
     return true;
 }
 
-static bool dotted_ref_highlightable(const Row *row, const IdeIndex *index,
+static bool dotted_ref_highlightable(const Row *row, const CgemSemantic *semantic,
                                      size_t at, size_t *start, size_t *end)
 {
     char reference[256];
@@ -3405,7 +3387,8 @@ static bool dotted_ref_highlightable(const Row *row, const IdeIndex *index,
     }
     memcpy(reference, row->data + *start, *end - *start);
     reference[*end - *start] = '\0';
-    return ide_index_reference_known(index, reference, *end - *start, false);
+    return cgem_semantic_reference_known(semantic, reference, *end - *start,
+                                         false);
 }
 
 static bool row_word_at(const Row *row, size_t at, const char *word)
@@ -3749,7 +3732,7 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                 size_t ref_start = 0;
                 size_t ref_end = 0;
 
-                if (dotted_ref_highlightable(row, &editor.index, at, &ref_start,
+                if (dotted_ref_highlightable(row, &editor.semantic, at, &ref_start,
                                              &ref_end)) {
                     color = name_theme;
                 } else if (is_standalone_as(row, at)) {
@@ -3822,7 +3805,7 @@ static void refresh_screen(void)
         content_cols = 1;
     }
     scroll_to_cursor();
-    ensure_index_fresh();
+    ensure_semantic_fresh();
     update_context_hint();
     ensure_diff_fresh();
     sticky_rows = prepare_sticky_scroll(editor.row_offset, content_rows, &sticky);
@@ -4043,7 +4026,7 @@ static bool format_editor_buffer(void)
                              &editor.history.redo_count);
         editor.revision = ++editor.next_revision;
         editor.dirty = true;
-        mark_index_dirty();
+        mark_semantic_dirty();
     } else if (captured) {
         free_snapshot(&before);
     }
@@ -4086,6 +4069,8 @@ static bool save_file(void)
         return false;
     }
     format_editor_buffer();
+    editor.semantic_dirty = true;
+    ensure_semantic_fresh();
     output = fopen(editor.filename, "wb");
     if (!output) {
         set_message("Save failed: %s", strerror(errno));
@@ -4302,9 +4287,8 @@ static bool open_file_path(const char *path)
     editor.open_pending = false;
     editor.follow_cursor = true;
     clear_selection();
-    clear_editor_diagnostics();
     update_saved_snapshot();
-    mark_index_dirty();
+    mark_semantic_dirty();
     save_ide_settings();
     set_message("Opened %s", editor.filename);
     return true;
@@ -4373,7 +4357,7 @@ static bool open_editor_input(const char *path)
     fclose(input);
     editor.dirty = false;
     update_saved_snapshot();
-    mark_index_dirty();
+    mark_semantic_dirty();
     set_message("Opened %s", editor.filename);
     return true;
 }
@@ -4629,7 +4613,7 @@ static void free_editor(void)
     free(editor.filename);
     free(editor.workspace_root);
     cg_diagnostic_free(&editor.diagnostics);
-    ide_index_free(&editor.index);
+    cgem_semantic_free(&editor.semantic);
 }
 
 int ide_run(const char *input_path, const char *include_path,
@@ -4649,8 +4633,8 @@ int ide_run(const char *input_path, const char *include_path,
         return EXIT_FAILURE;
     }
     cg_diagnostic_init(&editor.diagnostics);
-    ide_index_init(&editor.index);
-    editor.index_dirty = true;
+    cgem_semantic_init(&editor.semantic);
+    editor.semantic_dirty = true;
     editor.follow_cursor = true;
     ide_menu_init(&editor.menu);
     ide_keymap_init(editor.workspace_root, editor.include_path);

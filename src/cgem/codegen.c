@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+bool cg_compile_analyze_only = false;
+
 char *cg_build_package_path(const char *base, Block *blocks, size_t count)
 {
     char *path = strdup(base);
@@ -50,6 +52,9 @@ int cg_emit_let(ModuleOutput *module, bool use_source, bool use_define,
 {
     const char *storage = is_mutable ? "" : "const ";
 
+    if (cg_compile_analyze_only) {
+        return 0;
+    }
     if (!emit) {
         return 0;
     }
@@ -195,7 +200,7 @@ int cg_close_struct(StructOutput *output, char *error, size_t error_size)
     if (!output->active) {
         return 0;
     }
-    if (!output->emit) {
+    if (!output->emit || cg_compile_analyze_only) {
         cg_clear_struct(output);
         return 0;
     }
@@ -581,7 +586,7 @@ int cg_emit_function(FunctionOutput *output, char *error, size_t error_size)
 {
     const char *return_type = output->return_type;
 
-    if (!output->emit) {
+    if (!output->emit || cg_compile_analyze_only) {
         return 0;
     }
     if (!output->use_source) {
@@ -895,6 +900,9 @@ static bool include_covered_by_other(const char *candidate,
 int cg_module_body_append(ModuleOutput *module, const char *text,
                               size_t length)
 {
+    if (cg_compile_analyze_only) {
+        return 0;
+    }
     if (module->body_length + length + 1 > module->body_capacity) {
         size_t needed = module->body_length + length + 1;
         size_t capacity = module->body_capacity ? module->body_capacity * 2 : 256;
@@ -1353,6 +1361,9 @@ int cg_write_package_readme(const Block *block, char *error,
     char *directory;
     const char *slash;
 
+    if (cg_compile_analyze_only) {
+        return 0;
+    }
     if (block->docs.entry_count == 0 || !block->readme_path ||
         block->internal) {
         return 0;
@@ -1631,6 +1642,9 @@ void cg_free_header_deps(HeaderDeps *deps, size_t count)
 int cg_ensure_module_source(ModuleOutput *module, char *error,
                                 size_t error_size)
 {
+    if (cg_compile_analyze_only) {
+        return 0;
+    }
     if (module->source_file) {
         return 0;
     }
@@ -1678,7 +1692,8 @@ int cg_open_module(ModuleOutput *module, const char *include_path,
         cg_set_error(error, error_size, "out of memory");
         goto fail;
     }
-    if (platform_mkdir_p(directory, error, error_size) != 0) {
+    if (!cg_compile_analyze_only &&
+        platform_mkdir_p(directory, error, error_size) != 0) {
         goto fail;
     }
     size_t name_length = strlen(blocks[count - 1].name);
@@ -1706,17 +1721,19 @@ int cg_open_module(ModuleOutput *module, const char *include_path,
         cg_set_error(error, error_size, "out of memory");
         goto fail;
     }
-    if (remove(module->source_path) != 0 && errno != ENOENT) {
-        cg_set_error(error, error_size, "%s: %s",
-                  module->source_path, strerror(errno));
-        goto fail;
-    }
-    if (!blocks[count - 1].internal) {
-        module->file = fopen(module->path, "w");
-        if (!module->file) {
+    if (!cg_compile_analyze_only) {
+        if (remove(module->source_path) != 0 && errno != ENOENT) {
             cg_set_error(error, error_size, "%s: %s",
-                      module->path, strerror(errno));
+                      module->source_path, strerror(errno));
             goto fail;
+        }
+        if (!blocks[count - 1].internal) {
+            module->file = fopen(module->path, "w");
+            if (!module->file) {
+                cg_set_error(error, error_size, "%s: %s",
+                          module->path, strerror(errno));
+                goto fail;
+            }
         }
     }
     free(directory);

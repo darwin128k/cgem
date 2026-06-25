@@ -36,6 +36,9 @@ typedef struct {
 
 void ide_index_init(IdeIndex *index);
 void ide_index_free(IdeIndex *index);
+void ide_index_clear_hints(IdeIndex *index);
+void ide_index_collect_hints(IdeIndex *index, const IdeIndexRow *rows,
+                             size_t row_count);
 void ide_index_rebuild(IdeIndex *index, const IdeIndexRow *rows, size_t row_count);
 
 bool ide_index_completion_token_at(const char *line, size_t cursor,

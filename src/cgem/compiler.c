@@ -5,6 +5,7 @@
 #include "cgem/compiler_internal.h"
 #include "cgem/lint.h"
 #include "cgem/platform.h"
+#include "cgem/semantic.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -12,6 +13,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static CgemSemantic *cg_analyze_semantic_out;
+
+extern void cgem_semantic_adopt_symbols(CgemSemantic *semantic, Symbol *symbols,
+                                        size_t symbol_count);
 
 static int flush_includes(ModuleOutput *module, IncludeAttributes *includes,
                           HeaderDeps **header_deps, size_t *header_deps_count,
@@ -4733,7 +4739,7 @@ int cgem_compile(FILE *input, const char *include_path,
                 bool emit = cg_should_emit_c(blocks, block_count,
                                           attribute_internal, attribute_public);
 
-                if (emit) {
+                if (emit && !cg_compile_analyze_only) {
                     if (attribute_private) {
                         if (cg_ensure_module_source(&module, error, error_size) != 0) {
                             free(symbol);
@@ -5476,7 +5482,7 @@ int cgem_compile(FILE *input, const char *include_path,
                     free(resolved_expression);
                     goto done;
                 }
-                if (type_emit) {
+                if (type_emit && !cg_compile_analyze_only) {
                 if (attribute_private) {
                     if (cg_ensure_module_source(&module, error, error_size) != 0) {
                         free(symbol);
@@ -5753,7 +5759,8 @@ int cgem_compile(FILE *input, const char *include_path,
                       line_number);
             goto done;
         }
-        if (clean_output && kind == BLOCK_PACKAGE && block_count == 0) {
+        if (clean_output && !cg_compile_analyze_only &&
+            kind == BLOCK_PACKAGE && block_count == 0) {
             bool already_cleaned = false;
 
             for (size_t i = 0; i < cleaned_package_count; i++) {
@@ -5946,6 +5953,12 @@ done:
         }
     }
     free(blocks);
+    if (cg_analyze_semantic_out) {
+        cgem_semantic_adopt_symbols(cg_analyze_semantic_out, symbols,
+                                    symbol_count);
+        symbol_count = 0;
+        symbols = NULL;
+    }
     for (size_t i = 0; i < symbol_count; i++) {
         free(symbols[i].dsl_name);
         free(symbols[i].c_name);
@@ -5966,5 +5979,28 @@ done:
         cg_diagnostic_free(&local_diagnostics);
     }
     free(line);
+    return result;
+}
+
+int cgem_analyze(FILE *input, const char *compiler,
+                 DiagnosticList *diagnostics_out, CgemSemantic *semantic_out)
+{
+    char error[512];
+    char warning[1024];
+    int result;
+
+    if (!input || !compiler || !diagnostics_out || !semantic_out) {
+        return -1;
+    }
+    cg_compile_analyze_only = true;
+    cg_analyze_semantic_out = semantic_out;
+    result = cgem_compile(input, ".", ".", NULL, compiler, false, warning,
+                          sizeof(warning), error, sizeof(error),
+                          diagnostics_out);
+    cg_compile_analyze_only = false;
+    cg_analyze_semantic_out = NULL;
+    if (result != 0 && diagnostics_out->count > 0) {
+        return 0;
+    }
     return result;
 }

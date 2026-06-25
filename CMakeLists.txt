@@ -37,6 +37,7 @@ set(CGEM_COMPILER_SOURCES
     src/cgem/compiler_env.c
     src/cgem/parse.c
     src/cgem/codegen.c
+    src/cgem/semantic.c
 )
 
 set(CGEM_SOURCES

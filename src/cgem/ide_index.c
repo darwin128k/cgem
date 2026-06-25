@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool index_hints_only;
+
+static void index_rebuild_rows(IdeIndex *index, const IdeIndexRow *rows,
+                               size_t row_count);
+
 typedef struct {
     char *dsl_path;
     bool struct_module;
@@ -89,6 +94,9 @@ static void index_add(IdeIndex *index, const char *name)
     char *copy;
     size_t next;
 
+    if (index_hints_only) {
+        return;
+    }
     if (!index || !name || !name[0]) {
         return;
     }
@@ -249,6 +257,9 @@ static void index_add_dsl_symbol(IdeIndex *index, Block *blocks, size_t count,
     char *dsl_name;
 
     (void) decl_name;
+    if (index_hints_only) {
+        return;
+    }
     if (count == 0) {
         return;
     }
@@ -261,6 +272,9 @@ static void index_add_dsl_symbol(IdeIndex *index, Block *blocks, size_t count,
 
 static void index_add_field_type(IdeIndex *index, const FieldType *type)
 {
+    if (index_hints_only) {
+        return;
+    }
     if (type && type->name) {
         index_add(index, type->name);
     }
@@ -268,6 +282,9 @@ static void index_add_field_type(IdeIndex *index, const FieldType *type)
 
 static void index_add_reference(IdeIndex *index, const char *reference)
 {
+    if (index_hints_only) {
+        return;
+    }
     if (reference) {
         index_add(index, reference);
     }
@@ -276,6 +293,9 @@ static void index_add_reference(IdeIndex *index, const char *reference)
 static void index_scan_dotted_token(IdeIndex *index, const char *text,
                                     size_t length)
 {
+    if (index_hints_only) {
+        return;
+    }
     size_t at = 0;
 
     while (at < length) {
@@ -316,7 +336,9 @@ static void finalize_module(IdeIndex *index, ModuleFrame *frame)
     if (frame->struct_module || !frame->inner_exports) {
         index_add_terminal(index, frame->dsl_path);
     }
-    index_add(index, frame->dsl_path);
+    if (!index_hints_only) {
+        index_add(index, frame->dsl_path);
+    }
     free(frame->dsl_path);
     frame->dsl_path = NULL;
 }
@@ -510,6 +532,36 @@ void ide_index_free(IdeIndex *index)
     *index = (IdeIndex) {0};
 }
 
+void ide_index_clear_hints(IdeIndex *index)
+{
+    if (!index) {
+        return;
+    }
+    for (size_t i = 0; i < index->terminal_count; i++) {
+        free(index->terminals[i]);
+    }
+    free(index->terminals);
+    for (size_t i = 0; i < index->child_count; i++) {
+        free(index->children[i].parent);
+        free(index->children[i].child);
+    }
+    free(index->children);
+    for (size_t i = 0; i < index->fn_hint_count; i++) {
+        free(index->fn_hints[i].key);
+        free(index->fn_hints[i].hint);
+    }
+    free(index->fn_hints);
+    index->terminals = NULL;
+    index->terminal_count = 0;
+    index->terminal_capacity = 0;
+    index->children = NULL;
+    index->child_count = 0;
+    index->child_capacity = 0;
+    index->fn_hints = NULL;
+    index->fn_hint_count = 0;
+    index->fn_hint_capacity = 0;
+}
+
 #define IDE_FN_HINT_SIZE 480
 
 typedef struct {
@@ -674,7 +726,31 @@ static bool fn_collector_consume(FnHintCollector *collector, IdeIndex *index,
     return false;
 }
 
+void ide_index_collect_hints(IdeIndex *index, const IdeIndexRow *rows,
+                             size_t row_count)
+{
+    if (!index) {
+        return;
+    }
+    ide_index_clear_hints(index);
+    index_hints_only = true;
+    index_rebuild_rows(index, rows, row_count);
+    index_hints_only = false;
+}
+
 void ide_index_rebuild(IdeIndex *index, const IdeIndexRow *rows, size_t row_count)
+{
+    if (!index) {
+        return;
+    }
+    ide_index_free(index);
+    ide_index_init(index);
+    index_hints_only = false;
+    index_rebuild_rows(index, rows, row_count);
+}
+
+static void index_rebuild_rows(IdeIndex *index, const IdeIndexRow *rows,
+                               size_t row_count)
 {
     Block blocks[48];
     size_t block_count = 0;
@@ -691,8 +767,6 @@ void ide_index_rebuild(IdeIndex *index, const IdeIndexRow *rows, size_t row_coun
     if (!index) {
         return;
     }
-    ide_index_free(index);
-    ide_index_init(index);
 
     for (size_t y = 0; y < row_count; y++) {
         const char *line = rows[y].data;

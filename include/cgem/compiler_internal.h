@@ -4,6 +4,8 @@
 #include "cgem/diagnostic.h"
 
 #include <stdbool.h>
+
+extern bool cg_compile_analyze_only;
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/types.h>

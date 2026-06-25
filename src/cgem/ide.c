@@ -344,6 +344,9 @@ static void buffer_printf(Buffer *buffer, const char *format, ...)
 
 static void mark_semantic_dirty(void)
 {
+    if (cg_diagnostic_has_errors(&editor.diagnostics)) {
+        cg_diagnostic_clear(&editor.diagnostics);
+    }
     editor.semantic_dirty = true;
     editor.semantic_debounce_until =
         clock() + (clock_t) (400 * (long) CLOCKS_PER_SEC / 1000);
@@ -5243,7 +5246,9 @@ static bool generate_output(void)
         return false;
     }
     fclose(input);
+    cg_diagnostic_clear(&editor.diagnostics);
     cg_diagnostic_free(&compile_diagnostics);
+    mark_semantic_dirty();
     if (warning[0]) {
         set_message("Generated with warning: %s", warning);
     } else {
@@ -5464,6 +5469,7 @@ static bool open_editor_input(const char *path)
     fclose(input);
     editor.dirty = false;
     update_saved_snapshot();
+    cg_diagnostic_clear(&editor.diagnostics);
     mark_semantic_dirty();
     set_message("Opened %s", editor.filename);
     return true;

@@ -1,13 +1,13 @@
 #ifndef LH_NUMERIC_FIXED_H
 #define LH_NUMERIC_FIXED_H
 
-#include "lh/char.h"
 #include "lh/numeric/types.h"
+#include "lh/str/char.h"
 
 /**
  * @brief A signed integer type with at least 8 bits.
  */
-typedef lh_schar_t lh_s8_t;
+typedef lh_str_schar_t lh_s8_t;
 /**
  * @brief A signed integer type with at least 16 bits.
  */
@@ -24,7 +24,7 @@ typedef lh_sllong_t lh_s64_t;
 /**
  * @brief An unsigned integer type with at least 8 bits.
  */
-typedef lh_uchar_t lh_u8_t;
+typedef lh_str_uchar_t lh_u8_t;
 /**
  * @brief An unsigned integer type with at least 16 bits.
  */

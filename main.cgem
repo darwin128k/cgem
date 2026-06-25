@@ -24,22 +24,27 @@ package lh:
             "A generic pointer type."
         type module as lh.void.ptr
 
-    @noscope
-    module char:
-        @doc:
-            "The plain C character type."
-        type module as c.char
-        @doc:
-            "The signed C character type."
-        type schar as c.schar
-        @doc:
-            "The unsigned C character type."
-        type uchar as c.uchar
+    package str:
+        @noscope
+        module char:
+            @doc:
+                "The plain C character type."
+            type module as c.char
+            @doc:
+                "The signed C character type."
+            type schar as c.schar
+            @doc:
+                "The unsigned C character type."
+            type uchar as c.uchar
+
+        module raw:
+            @pointer
+            type module as lh.str.char
 
     module byte:
         @doc:
             "An unsigned byte-sized value."
-        type module as lh.uchar
+        type module as lh.str.uchar
 
     module bool:
         @doc:
@@ -112,7 +117,7 @@ package lh:
         module fixed:
             @doc:
                 "A signed integer type with at least 8 bits."
-            type s8 as lh.schar
+            type s8 as lh.str.schar
             @doc:
                 "A signed integer type with at least 16 bits."
             type s16 as lh.sshort
@@ -125,7 +130,7 @@ package lh:
 
             @doc:
                 "An unsigned integer type with at least 8 bits."
-            type u8 as lh.uchar
+            type u8 as lh.str.uchar
             @doc:
                 "An unsigned integer type with at least 16 bits."
             type u16 as lh.ushort

@@ -63,8 +63,10 @@ package lh:
                 "A pair of typed values."
             @mutable
             struct module:
+                @require(type)
                 @doc("Type of the first value.")
                 field first as param first_type
+                @require(type)
                 @doc("Type of the second value.")
                 field second as param second_type
 
@@ -147,6 +149,7 @@ package lh:
                 @doc:
                     "Half-open interval with typed lower and upper bounds."
                 struct module:
+                    @require(type)
                     param type
                     lh.pair.fields(type, type)
 

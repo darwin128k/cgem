@@ -3763,6 +3763,12 @@ static bool dotted_ref_highlightable(const Row *row, const CgemSemantic *semanti
                                          false);
 }
 
+static bool row_word_boundary(char ch)
+{
+    return ch == '\0' || ch == ' ' || ch == ')' || ch == '(' || ch == ',' ||
+           ch == ':';
+}
+
 static bool row_word_at(const Row *row, size_t at, const char *word)
 {
     size_t length = strlen(word);
@@ -3775,7 +3781,7 @@ static bool row_word_at(const Row *row, size_t at, const char *word)
         return false;
     }
     next = at + length < row->length ? row->data[at + length] : '\0';
-    return next == '\0' || next == ' ';
+    return row_word_boundary(next);
 }
 
 #define BODY_HIGHLIGHT_MAX 64
@@ -4413,7 +4419,178 @@ static void scan_line_operators(const Row *row, size_t line_first,
     }
 }
 
+static size_t collect_struct_meta_params_before(size_t file_row,
+                                              char names[][64],
+                                              size_t capacity)
+{
+    size_t struct_row = SIZE_MAX;
+    size_t struct_indent = 0;
+
+    if (file_row >= editor.row_count || capacity == 0) {
+        return 0;
+    }
+    for (size_t r = 0; r <= file_row; r++) {
+        const Row *candidate = &editor.rows[r];
+        size_t indent = leading_spaces(candidate);
+        size_t at = indent;
+
+        if (declaration_keyword_length(candidate, at) == 6 &&
+            row_starts_with(candidate, at, "struct")) {
+            struct_row = r;
+            struct_indent = indent;
+        }
+    }
+    if (struct_row == SIZE_MAX) {
+        return 0;
+    }
+    {
+        size_t count = 0;
+
+        for (size_t r = struct_row + 1; r < file_row && r < editor.row_count;
+             r++) {
+            const Row *candidate = &editor.rows[r];
+            size_t indent = leading_spaces(candidate);
+            size_t at = indent;
+            size_t name_start;
+            size_t name_len;
+
+            if (indent <= struct_indent) {
+                break;
+            }
+            if (indent != struct_indent + 4 ||
+                !row_starts_with(candidate, at, "param")) {
+                continue;
+            }
+            at += 5;
+            while (at < candidate->length && candidate->data[at] == ' ') {
+                at++;
+            }
+            if (at >= candidate->length ||
+                !cg_name_start((unsigned char) candidate->data[at])) {
+                continue;
+            }
+            name_start = at;
+            at = skip_identifier(candidate, at);
+            name_len = at - name_start;
+            if (name_len == 0 || name_len >= 64 || count >= capacity) {
+                continue;
+            }
+            memcpy(names[count], candidate->data + name_start, name_len);
+            names[count][name_len] = '\0';
+            count++;
+        }
+        return count;
+    }
+}
+
+static bool struct_meta_param_known(char names[32][64], size_t count,
+                                    const char *candidate, size_t length)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (strlen(names[i]) == length &&
+            memcmp(names[i], candidate, length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void scan_struct_meta_param_refs(const Row *row, size_t line_first,
+                                        size_t file_row,
+                                        BodyHighlightSpan *spans,
+                                        size_t *count)
+{
+    char names[32][64];
+    size_t name_count =
+        collect_struct_meta_params_before(file_row, names, 32);
+    size_t at = line_first;
+    size_t paren = (size_t) -1;
+
+    if (name_count == 0) {
+        return;
+    }
+    while (at < row->length) {
+        if (row->data[at] == '(') {
+            paren = at;
+            break;
+        }
+        if (row->data[at] == '"') {
+            size_t string_start = 0;
+            size_t string_end = 0;
+
+            at = scan_highlight_string(row, at, &string_start, &string_end);
+            continue;
+        }
+        if (cg_name_start((unsigned char) row->data[at]) ||
+            row->data[at] == '.') {
+            at = skip_identifier(row, at);
+            while (at + 1 < row->length && row->data[at] == '.' &&
+                   cg_name_start((unsigned char) row->data[at + 1])) {
+                at++;
+                at = skip_identifier(row, at);
+            }
+            continue;
+        }
+        at++;
+    }
+    if (paren == (size_t) -1) {
+        return;
+    }
+    at = paren + 1;
+    for (;;) {
+        bool dotted = false;
+        size_t arg_start;
+
+        while (at < row->length && row->data[at] == ' ') {
+            at++;
+        }
+        if (at >= row->length || row->data[at] == ')') {
+            break;
+        }
+        if (!cg_name_start((unsigned char) row->data[at])) {
+            while (at < row->length && row->data[at] != ',' &&
+                   row->data[at] != ')') {
+                at++;
+            }
+            if (at < row->length && row->data[at] == ',') {
+                at++;
+            }
+            continue;
+        }
+        arg_start = at;
+        at = skip_identifier(row, at);
+        for (size_t i = arg_start; i < at; i++) {
+            if (row->data[i] == '.') {
+                dotted = true;
+                break;
+            }
+        }
+        while (at + 1 < row->length && row->data[at] == '.' &&
+               cg_name_start((unsigned char) row->data[at + 1])) {
+            dotted = true;
+            at++;
+            at = skip_identifier(row, at);
+        }
+        if (!dotted &&
+            struct_meta_param_known(names, name_count, row->data + arg_start,
+                                    at - arg_start)) {
+            body_highlight_add(spans, count, arg_start, at, BODY_HL_NAME);
+        }
+        while (at < row->length && row->data[at] == ' ') {
+            at++;
+        }
+        if (at < row->length && row->data[at] == ',') {
+            at++;
+            continue;
+        }
+        if (at < row->length && row->data[at] == ')') {
+            break;
+        }
+    }
+}
+
 static void scan_body_line_highlights(const Row *row, size_t line_first,
+                                      size_t file_row,
                                       BodyHighlightSpan *spans, size_t *count,
                                       size_t *function_start,
                                       size_t *function_end)
@@ -4444,6 +4621,7 @@ static void scan_body_line_highlights(const Row *row, size_t line_first,
     scan_line_attributes(row, line_first, spans, count);
     scan_param_as_clause(row, line_first, spans, count);
     scan_inline_param_clauses(row, line_first, spans, count);
+    scan_struct_meta_param_refs(row, line_first, file_row, spans, count);
     scan_line_operators(row, line_first, spans, count);
     scan_conditional_operators(row, line_first, spans, count);
 }
@@ -4777,8 +4955,9 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
         }
     }
 
-    scan_body_line_highlights(row, first, body_spans, &body_span_count,
-                              &function_start, &function_end);
+    scan_body_line_highlights(row, first, file_row, body_spans,
+                              &body_span_count, &function_start,
+                              &function_end);
 
     buffer_append(buffer, editor_theme, strlen(editor_theme));
     {

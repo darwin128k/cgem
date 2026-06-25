@@ -57,6 +57,8 @@ Release notes on GitHub are taken from the section that matches the tag
 - `semantic_nav.c` definition indexing after a corrupted `cg_parse_fn` guard.
 - `@require(type as …)` inside a struct was rejected as an unsupported inline
   attribute instead of being parsed as a parameter constraint.
+- IDE highlighting for `@require(type)` / `@require(value)` (constraint keywords
+  before `)`) and for struct metaparameter names reused in field-macro calls.
 
 ## 0.1.0 - 2026-06-24
 

@@ -195,21 +195,28 @@ bool cg_parse_type(const char *text, char **name,
         if (!cg_name_start((unsigned char) text[at])) goto fail;
         while (cg_name_char((unsigned char) text[at]) || text[at] == '.') at++;
         if (text[at] != '\0') goto fail;
-        *reference = cg_copy_text(text + reference_start, at - reference_start);
-        if (!*reference) goto fail;
+        if (reference) {
+            *reference = cg_copy_text(text + reference_start, at - reference_start);
+            if (!*reference) goto fail;
+        }
     }
     return true;
 
 fail:
     free(*name);
-    free(*reference);
+    if (reference) {
+        free(*reference);
+        *reference = NULL;
+    }
     if (expr_args) {
         cg_free_expr_args(*expr_args, *expr_arg_count);
         *expr_args = NULL;
         *expr_arg_count = 0;
     }
     *name = NULL;
-    *reference = NULL;
+    if (reference) {
+        *reference = NULL;
+    }
     return false;
 }
 
@@ -271,7 +278,9 @@ bool cg_parse_case(const char *text, char **name, char **value)
     size_t end;
     size_t value_length;
 
-    *value = NULL;
+    if (value) {
+        *value = NULL;
+    }
     if (strncmp(text, "case ", at + 1) != 0) {
         return false;
     }
@@ -310,17 +319,21 @@ bool cg_parse_case(const char *text, char **name, char **value)
     while (value_length > 0 && text[at + value_length - 1] == ' ') {
         value_length--;
     }
-    *value = cg_copy_text(text + at, value_length);
-    if (!*value) {
-        goto fail;
+    if (value) {
+        *value = cg_copy_text(text + at, value_length);
+        if (!*value) {
+            goto fail;
+        }
     }
     return true;
 
 fail:
     free(*name);
     *name = NULL;
-    free(*value);
-    *value = NULL;
+    if (value) {
+        free(*value);
+        *value = NULL;
+    }
     return false;
 }
 
@@ -501,7 +514,9 @@ bool cg_parse_let(const char *text, char **name, FieldType *type, char **value)
 
     *name = NULL;
     *type = (FieldType) {0};
-    *value = NULL;
+    if (value) {
+        *value = NULL;
+    }
     if (strncmp(text, "let", 3) != 0) {
         return false;
     }
@@ -547,15 +562,21 @@ bool cg_parse_let(const char *text, char **name, FieldType *type, char **value)
     while (value_length > 0 && text[at + value_length - 1] == ' ') {
         value_length--;
     }
-    *value = cg_copy_text(text + at, value_length);
-    if (!*value) {
-        goto fail;
+    if (value) {
+        *value = cg_copy_text(text + at, value_length);
+        if (!*value) {
+            goto fail;
+        }
     }
     return true;
 
 fail:
     free(*name);
     cg_free_field_type(type);
+    if (value) {
+        free(*value);
+        *value = NULL;
+    }
     *name = NULL;
     return false;
 }

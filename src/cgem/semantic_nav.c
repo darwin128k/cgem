@@ -190,13 +190,17 @@ void cgem_semantic_index_definitions(const IdeIndexRow *rows, size_t row_count,
             char *base = NULL;
             FieldType field_type = {0};
             char *let_value = NULL;
+            char *type_reference = NULL;
+            char *case_value = NULL;
 
-            if (cg_parse_type(text, &name, NULL, NULL, NULL, NULL, NULL)) {
+            if (cg_parse_type(text, &name, NULL, NULL, &type_reference, NULL,
+                              NULL)) {
                 char *dsl = declaration_dsl_name(blocks, block_count, name);
 
                 record_definition(semantic, dsl, y + 1, indent + 1, current_file);
                 free(dsl);
                 free(name);
+                free(type_reference);
                 continue;
             }
             if (cg_parse_enum(text, &name, &base)) {
@@ -210,7 +214,7 @@ void cgem_semantic_index_definitions(const IdeIndexRow *rows, size_t row_count,
                 free(base);
                 continue;
             }
-            if (cg_parse_case(text, &name, NULL)) {
+            if (cg_parse_case(text, &name, &case_value)) {
                 if (enum_dsl_name && name) {
                     size_t member_length =
                         strlen(enum_dsl_name) + 1 + strlen(name) + 1;
@@ -225,6 +229,7 @@ void cgem_semantic_index_definitions(const IdeIndexRow *rows, size_t row_count,
                     }
                 }
                 free(name);
+                free(case_value);
                 continue;
             }
             if (cg_parse_fn(text, &name, &field_type)) {

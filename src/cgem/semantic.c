@@ -694,13 +694,18 @@ static void lint_duplicate_names(const IdeIndexRow *rows, size_t row_count,
         } else {
             FieldType field_type = {0};
             char *base = NULL;
+            char *type_reference = NULL;
+            char *case_value = NULL;
+            char *let_value = NULL;
 
-            if (cg_parse_type(text, &name, NULL, NULL, NULL, NULL, NULL)) {
+            if (cg_parse_type(text, &name, NULL, NULL, &type_reference, NULL,
+                              NULL)) {
                 if (block_count > 0) {
                     name_set_add(&scope_names[block_count - 1], name, y + 1,
                                  diagnostics);
                 }
                 free(name);
+                free(type_reference);
                 continue;
             }
             if (cg_parse_enum(text, &name, &base)) {
@@ -721,13 +726,14 @@ static void lint_duplicate_names(const IdeIndexRow *rows, size_t row_count,
                 cg_free_field_type(&field_type);
                 continue;
             }
-            if (cg_parse_let(text, &name, &field_type, NULL)) {
+            if (cg_parse_let(text, &name, &field_type, &let_value)) {
                 if (block_count > 0) {
                     name_set_add(&scope_names[block_count - 1], name, y + 1,
                                  diagnostics);
                 }
                 free(name);
                 cg_free_field_type(&field_type);
+                free(let_value);
                 continue;
             }
             if (cg_parse_field(text, &name, &field_type)) {
@@ -739,12 +745,13 @@ static void lint_duplicate_names(const IdeIndexRow *rows, size_t row_count,
                 cg_free_field_type(&field_type);
                 continue;
             }
-            if (cg_parse_case(text, &name, NULL)) {
+            if (cg_parse_case(text, &name, &case_value)) {
                 if (block_count > 0) {
                     name_set_add(&scope_names[block_count - 1], name, y + 1,
                                  diagnostics);
                 }
                 free(name);
+                free(case_value);
                 continue;
             }
             continue;

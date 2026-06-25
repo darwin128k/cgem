@@ -19,6 +19,14 @@ static CgemSemantic *cg_analyze_semantic_out;
 extern void cgem_semantic_adopt_symbols(CgemSemantic *semantic, Symbol *symbols,
                                         size_t symbol_count);
 
+static char *copy_field_type_dsl(const FieldType *type)
+{
+    if (!type || !type->name || type->is_param_ref) {
+        return NULL;
+    }
+    return strdup(type->name);
+}
+
 static int flush_includes(ModuleOutput *module, IncludeAttributes *includes,
                           HeaderDeps **header_deps, size_t *header_deps_count,
                           size_t *header_deps_capacity, bool emit,
@@ -1747,7 +1755,8 @@ static int begin_struct_method(
     if (fn_emit &&
         cg_add_symbol_ex(symbols, symbol_count, symbol_capacity, fn_dsl,
                          fn_symbol, struct_output->header, NULL, false, false,
-                         method_mutable) != 0) {
+                         method_mutable, SYMBOL_KIND_FN,
+                         copy_field_type_dsl(fn_return_type)) != 0) {
         free(fn_symbol);
         free(fn_dsl);
         free(fn_c_return_type);
@@ -2475,9 +2484,9 @@ static int finalize_struct(
                 cg_set_error(error, error_size, "out of memory");
                 return -1;
             }
-            if (cg_add_symbol(symbols, symbol_count, symbol_capacity, dsl_name,
-                              output->c_name, output->header, NULL, false,
-                              false) != 0) {
+            if (cg_add_symbol_ex(symbols, symbol_count, symbol_capacity, dsl_name,
+                                 output->c_name, output->header, NULL, false,
+                                 false, false, SYMBOL_KIND_TYPE, NULL) != 0) {
                 free(dsl_name);
                 cg_set_error(error, error_size, "out of memory");
                 return -1;
@@ -2504,9 +2513,9 @@ static int finalize_struct(
             return -1;
         }
         snprintf(typedef_name, typedef_length, "%s_t", output->c_name);
-        if (cg_add_symbol(symbols, symbol_count, symbol_capacity, dsl_name,
-                          typedef_name, output->header, NULL, false, false) !=
-                0 ||
+        if (cg_add_symbol_ex(symbols, symbol_count, symbol_capacity, dsl_name,
+                             typedef_name, output->header, NULL, false, false,
+                             false, SYMBOL_KIND_TYPE, NULL) != 0 ||
             cg_add_primary_export_alias(blocks, block_count, symbols,
                                         symbol_count, symbol_capacity) != 0) {
             free(dsl_name);
@@ -3112,10 +3121,13 @@ int cgem_compile(FILE *input, const char *include_path,
             snprintf(member_dsl, strlen(enum_output.dsl_name) +
                                 strlen(member_name) + 2,
                      "%s.%s", enum_output.dsl_name, member_name);
-            if (cg_add_symbol(&symbols, &symbol_count, &symbol_capacity,
-                           member_dsl, c_symbol, module.relative_header,
-                           member_value, enum_output.use_define,
-                           !enum_output.emit) != 0) {
+            if (cg_add_symbol_ex(&symbols, &symbol_count, &symbol_capacity,
+                                 member_dsl, c_symbol, module.relative_header,
+                                 member_value, enum_output.use_define,
+                                 !enum_output.emit, false, SYMBOL_KIND_VALUE,
+                                 enum_output.dsl_name ?
+                                     strdup(enum_output.dsl_name) : NULL) !=
+                0) {
                 free(member_name);
                 free(explicit_value);
                 free(member_value);
@@ -4844,6 +4856,38 @@ int cgem_compile(FILE *input, const char *include_path,
                     cg_set_error(error, error_size, "out of memory");
                     goto done;
                 }
+                {
+                    char *enum_dsl = strdup(enum_output.dsl_name);
+                    char *enum_base_dsl = strdup(base);
+
+                    if (!enum_dsl || !enum_base_dsl ||
+                        cg_add_symbol_ex(&symbols, &symbol_count, &symbol_capacity,
+                                         enum_dsl, type_name,
+                                         module.relative_header,
+                                         base_symbol->c_name, false, !emit,
+                                         false, SYMBOL_KIND_TYPE,
+                                         enum_base_dsl) != 0) {
+                        free(enum_dsl);
+                        free(enum_base_dsl);
+                        cg_close_enum(&enum_output);
+                        free(symbol);
+                        free(name);
+                        free(base);
+                        cg_set_error(error, error_size, "out of memory");
+                        goto done;
+                    }
+                    if (cg_is_module_export_name(enum_output.local_name) &&
+                        cg_add_primary_export_alias(
+                            blocks, block_count, &symbols, &symbol_count,
+                            &symbol_capacity) != 0) {
+                        cg_close_enum(&enum_output);
+                        free(symbol);
+                        free(name);
+                        free(base);
+                        cg_set_error(error, error_size, "out of memory");
+                        goto done;
+                    }
+                }
                 free(name);
                 free(base);
                 if (flush_includes(&module, &include_attributes, &header_deps,
@@ -4986,10 +5030,11 @@ int cgem_compile(FILE *input, const char *include_path,
                             free(let_value);
                             goto done;
                         }
-                        if (cg_add_symbol(&symbols, &symbol_count,
-                                          &symbol_capacity, let_dsl,
-                                          let_symbol, module.relative_header,
-                                          let_value, true, !let_emit) != 0) {
+                        if (cg_add_symbol_ex(&symbols, &symbol_count,
+                                             &symbol_capacity, let_dsl,
+                                             let_symbol, module.relative_header,
+                                             let_value, true, !let_emit, false,
+                                             SYMBOL_KIND_MACRO, NULL) != 0) {
                             free(let_symbol);
                             free(let_dsl);
                             free(let_name);
@@ -5109,10 +5154,12 @@ int cgem_compile(FILE *input, const char *include_path,
                         free(let_value);
                         goto done;
                     }
-                    if (cg_add_symbol(&symbols, &symbol_count, &symbol_capacity,
-                                   let_dsl, let_symbol, module.relative_header,
-                                   NULL, let_use_define,
-                                   !let_emit) != 0) {
+                    if (cg_add_symbol_ex(&symbols, &symbol_count, &symbol_capacity,
+                                         let_dsl, let_symbol,
+                                         module.relative_header, NULL,
+                                         let_use_define, !let_emit,
+                                         attribute_mutable, SYMBOL_KIND_VALUE,
+                                         copy_field_type_dsl(&let_type)) != 0) {
                         free(let_symbol);
                         free(let_dsl);
                         free(let_name);
@@ -5278,10 +5325,12 @@ int cgem_compile(FILE *input, const char *include_path,
                         cg_free_field_type(&fn_return_type);
                         goto done;
                     }
-                    if (cg_add_symbol(&symbols, &symbol_count, &symbol_capacity,
-                                      fn_dsl, fn_symbol,
-                                      module.relative_header, NULL, false,
-                                      !fn_emit) != 0) {
+                    if (cg_add_symbol_ex(&symbols, &symbol_count, &symbol_capacity,
+                                         fn_dsl, fn_symbol,
+                                         module.relative_header, NULL, false,
+                                         !fn_emit, false, SYMBOL_KIND_FN,
+                                         copy_field_type_dsl(&fn_return_type)) !=
+                        0) {
                         free(fn_symbol);
                         free(fn_name);
                         free(fn_c_return_type);
@@ -5645,12 +5694,16 @@ int cgem_compile(FILE *input, const char *include_path,
                         }
                     }
                     if (!export_name || !dsl_name ||
-                        cg_add_symbol(&symbols, &symbol_count, &symbol_capacity,
-                                   dsl_name, symbol, module.relative_header,
-                                   stored_expr, use_define,
-                                   !cg_should_emit_c(blocks, block_count,
-                                                  attribute_internal,
-                                                  attribute_public)) != 0) {
+                        cg_add_symbol_ex(&symbols, &symbol_count, &symbol_capacity,
+                                         dsl_name, symbol, module.relative_header,
+                                         stored_expr, use_define,
+                                         !cg_should_emit_c(blocks, block_count,
+                                                        attribute_internal,
+                                                        attribute_public),
+                                         false, SYMBOL_KIND_TYPE,
+                                         alias_reference ?
+                                             strdup(alias_reference) : NULL) !=
+                            0) {
                         free(stored_expr);
                         free(export_name);
                         free(dsl_name);
@@ -5964,6 +6017,7 @@ done:
         free(symbols[i].c_name);
         free(symbols[i].header);
         free(symbols[i].c_expr);
+        free(symbols[i].type_dsl_name);
     }
     free(symbols);
     cg_free_header_deps(header_deps, header_deps_count);

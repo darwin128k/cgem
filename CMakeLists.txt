@@ -38,6 +38,7 @@ set(CGEM_COMPILER_SOURCES
     src/cgem/parse.c
     src/cgem/codegen.c
     src/cgem/semantic.c
+    src/cgem/typecheck.c
 )
 
 set(CGEM_SOURCES

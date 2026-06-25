@@ -4,6 +4,7 @@
 
 #include "cgem/compiler_internal.h"
 #include "cgem/lint.h"
+#include "cgem/typecheck.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -31,10 +32,47 @@ static void free_symbols(CgemSemantic *semantic)
     }
     for (size_t i = 0; i < semantic->symbol_count; i++) {
         free(semantic->symbols[i].dsl_name);
+        free(semantic->symbols[i].type_dsl_name);
     }
     free(semantic->symbols);
     semantic->symbols = NULL;
     semantic->symbol_count = 0;
+}
+
+static CgemSymbolKind map_symbol_kind(SymbolKind kind)
+{
+    switch (kind) {
+    case SYMBOL_KIND_TYPE:
+        return CGEM_SYMBOL_KIND_TYPE;
+    case SYMBOL_KIND_VALUE:
+        return CGEM_SYMBOL_KIND_VALUE;
+    case SYMBOL_KIND_MACRO:
+        return CGEM_SYMBOL_KIND_MACRO;
+    case SYMBOL_KIND_FN:
+        return CGEM_SYMBOL_KIND_FN;
+    default:
+        return CGEM_SYMBOL_KIND_UNKNOWN;
+    }
+}
+
+bool cgem_semantic_symbol_is_type(const CgemSemanticSymbol *symbol)
+{
+    return symbol && symbol->kind == CGEM_SYMBOL_KIND_TYPE;
+}
+
+const CgemSemanticSymbol *cgem_semantic_find(const CgemSemantic *semantic,
+                                               const char *name)
+{
+    if (!semantic || !name) {
+        return NULL;
+    }
+    for (size_t i = 0; i < semantic->symbol_count; i++) {
+        if (semantic->symbols[i].dsl_name &&
+            strcmp(semantic->symbols[i].dsl_name, name) == 0) {
+            return &semantic->symbols[i];
+        }
+    }
+    return NULL;
 }
 
 void cgem_semantic_clear(CgemSemantic *semantic)
@@ -77,6 +115,14 @@ void cgem_semantic_adopt_symbols(CgemSemantic *semantic, Symbol *symbols,
             continue;
         }
         grown[semantic->symbol_count].dsl_name = symbols[i].dsl_name;
+        grown[semantic->symbol_count].kind = map_symbol_kind(symbols[i].kind);
+        grown[semantic->symbol_count].is_define = symbols[i].is_define;
+        if (symbols[i].type_dsl_name) {
+            grown[semantic->symbol_count].type_dsl_name =
+                strdup(symbols[i].type_dsl_name);
+        } else {
+            grown[semantic->symbol_count].type_dsl_name = NULL;
+        }
         symbols[i].dsl_name = NULL;
         semantic->symbol_count++;
     }
@@ -790,6 +836,7 @@ int cgem_semantic_analyze_rows(const IdeIndexRow *rows, size_t row_count,
         return result;
     }
     ide_index_collect_hints(&semantic->hints, rows, row_count);
+    cgem_typecheck_rows(semantic, rows, row_count, diagnostics);
     semantic_lint_extras(semantic, rows, row_count, diagnostics);
     return 0;
 }

@@ -85,6 +85,14 @@ typedef enum {
     SYMBOL_VALUE_STRING
 } SymbolValueKind;
 
+typedef enum {
+    SYMBOL_KIND_UNKNOWN,
+    SYMBOL_KIND_TYPE,
+    SYMBOL_KIND_VALUE,
+    SYMBOL_KIND_MACRO,
+    SYMBOL_KIND_FN
+} SymbolKind;
+
 typedef struct {
     char *dsl_name;
     char *c_name;
@@ -94,6 +102,8 @@ typedef struct {
     bool is_internal;
     bool is_mutable;
     SymbolValueKind value_kind;
+    SymbolKind kind;
+    char *type_dsl_name;
 } Symbol;
 
 typedef struct {
@@ -308,7 +318,7 @@ int cg_add_symbol(Symbol **symbols, size_t *count, size_t *capacity,
 int cg_add_symbol_ex(Symbol **symbols, size_t *count, size_t *capacity,
                      char *dsl_name, const char *c_name, const char *header,
                      const char *c_expr, bool is_define, bool is_internal,
-                     bool is_mutable);
+                     bool is_mutable, SymbolKind kind, char *type_dsl_name);
 Symbol *cg_find_symbol(Symbol *symbols, size_t count, const char *name);
 Symbol *cg_find_symbol_by_c_name(Symbol *symbols, size_t count,
                                  const char *name);

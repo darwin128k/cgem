@@ -72,8 +72,8 @@ static int add_macro(Symbol **symbols, size_t *count, size_t *capacity,
     dsl_name = malloc(dsl_length);
     if (!dsl_name) return -1;
     snprintf(dsl_name, dsl_length, "c.compiler.%s", name);
-    if (cg_add_symbol(symbols, count, capacity, dsl_name, name, "", value,
-                      true, true) != 0) {
+    if (cg_add_symbol_ex(symbols, count, capacity, dsl_name, name, "", value,
+                         true, true, false, SYMBOL_KIND_MACRO, NULL) != 0) {
         free(dsl_name);
         return -1;
     }

@@ -184,9 +184,11 @@ int cg_add_primary_export_alias(Block *blocks, size_t block_count,
     if (!parent_name) {
         return -1;
     }
-    if (cg_add_symbol(symbols, symbol_count, symbol_capacity, parent_name,
-                      last->c_name, last->header, last->c_expr,
-                      last->is_define, last->is_internal) != 0) {
+    if (cg_add_symbol_ex(symbols, symbol_count, symbol_capacity, parent_name,
+                         last->c_name, last->header, last->c_expr,
+                         last->is_define, last->is_internal, last->is_mutable,
+                         last->kind, last->type_dsl_name ?
+                             strdup(last->type_dsl_name) : NULL) != 0) {
         free(parent_name);
         return -1;
     }
@@ -196,7 +198,7 @@ int cg_add_primary_export_alias(Block *blocks, size_t block_count,
 int cg_add_symbol_ex(Symbol **symbols, size_t *count, size_t *capacity,
                      char *dsl_name, const char *c_name, const char *header,
                      const char *c_expr, bool is_define, bool is_internal,
-                     bool is_mutable)
+                     bool is_mutable, SymbolKind kind, char *type_dsl_name)
 {
     if (*count == *capacity) {
         size_t next = *capacity ? *capacity * 2 : 16;
@@ -214,6 +216,8 @@ int cg_add_symbol_ex(Symbol **symbols, size_t *count, size_t *capacity,
     (*symbols)[*count].is_mutable = is_mutable;
     (*symbols)[*count].value_kind = is_define
         ? infer_symbol_value_kind(c_expr) : SYMBOL_VALUE_UNKNOWN;
+    (*symbols)[*count].kind = kind;
+    (*symbols)[*count].type_dsl_name = type_dsl_name;
     if (!(*symbols)[*count].c_name || !(*symbols)[*count].header) return -1;
     if (c_expr && !(*symbols)[*count].c_expr) return -1;
     (*count)++;
@@ -225,7 +229,8 @@ int cg_add_symbol(Symbol **symbols, size_t *count, size_t *capacity,
                   const char *c_expr, bool is_define, bool is_internal)
 {
     return cg_add_symbol_ex(symbols, count, capacity, dsl_name, c_name, header,
-                            c_expr, is_define, is_internal, false);
+                            c_expr, is_define, is_internal, false,
+                            SYMBOL_KIND_UNKNOWN, NULL);
 }
 
 int cg_add_builtin_c_types(Symbol **symbols, size_t *count, size_t *capacity)
@@ -260,9 +265,10 @@ int cg_add_builtin_c_types(Symbol **symbols, size_t *count, size_t *capacity)
         char *dsl_name = strdup(types[i].name);
 
         if (!dsl_name ||
-            cg_add_symbol(symbols, count, capacity, dsl_name,
-                          types[i].spelling, "", types[i].spelling,
-                          false, true) != 0) {
+            cg_add_symbol_ex(symbols, count, capacity, dsl_name,
+                             types[i].spelling, "", types[i].spelling, false,
+                             true, false, SYMBOL_KIND_TYPE,
+                             strdup(types[i].name)) != 0) {
             free(dsl_name);
             return -1;
         }

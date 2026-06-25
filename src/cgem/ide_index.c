@@ -466,6 +466,7 @@ static void emit_nested_self_fields(IdeIndex *index,
         memcpy(entry + prefix_len + 1, sub_fields->fields[i].field_name,
                sub_name_len);
         entry[entry_len] = '\0';
+        index_add_child(index, prefix, sub_fields->fields[i].field_name);
         index_add(index, entry);
         if (sub_fields->fields[i].type_name) {
             emit_nested_self_fields(index, registry, entry, entry_len,
@@ -489,6 +490,7 @@ static void emit_self_fields(IdeIndex *index, const StructFieldList *fields,
         memcpy(entry, "self.", 5);
         memcpy(entry + 5, fields->fields[i].field_name, name_len);
         entry[5 + name_len] = '\0';
+        index_add_child(index, "self", fields->fields[i].field_name);
         index_add(index, entry);
         if (registry && fields->fields[i].type_name) {
             emit_nested_self_fields(index, registry, entry, 5 + name_len,
@@ -932,6 +934,7 @@ static void index_rebuild_rows(IdeIndex *index, const IdeIndexRow *rows,
                             memcpy(self_entry, "self.", 5);
                             memcpy(self_entry + 5, fn_name, name_len);
                             self_entry[5 + name_len] = '\0';
+                            index_add_child(index, "self", fn_name);
                             index_add(index, self_entry);
                             free(self_entry);
                         }

@@ -3717,6 +3717,18 @@ static bool span_is_dotted_reference(const Row *row, size_t at, size_t *start,
     return true;
 }
 
+static bool span_is_self_reference(const Row *row, size_t at, size_t *start,
+                                   size_t *end)
+{
+    if (!span_is_dotted_reference(row, at, start, end)) {
+        return false;
+    }
+    if (*end - *start <= 5 || memcmp(row->data + *start, "self.", 5) != 0) {
+        return false;
+    }
+    return cg_name_start((unsigned char) row->data[*start + 5]);
+}
+
 static bool dotted_ref_highlightable(const Row *row, const CgemSemantic *semantic,
                                      size_t at, size_t *start, size_t *end)
 {
@@ -3747,6 +3759,202 @@ static bool row_word_at(const Row *row, size_t at, const char *word)
     }
     next = at + length < row->length ? row->data[at + length] : '\0';
     return next == '\0' || next == ' ';
+}
+
+#define BODY_HIGHLIGHT_MAX 24
+
+typedef enum {
+    BODY_HL_KEYWORD,
+    BODY_HL_NAME,
+    BODY_HL_BUILTIN,
+    BODY_HL_OPERATOR
+} BodyHighlightKind;
+
+typedef struct {
+    size_t start;
+    size_t end;
+    BodyHighlightKind kind;
+} BodyHighlightSpan;
+
+static void body_highlight_add(BodyHighlightSpan *spans, size_t *count,
+                               size_t start, size_t end,
+                               BodyHighlightKind kind)
+{
+    if (!spans || !count || end <= start || *count >= BODY_HIGHLIGHT_MAX) {
+        return;
+    }
+    spans[*count].start = start;
+    spans[*count].end = end;
+    spans[*count].kind = kind;
+    (*count)++;
+}
+
+static bool body_highlight_kind_at(const BodyHighlightSpan *spans, size_t count,
+                                   size_t at, BodyHighlightKind *kind)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (at >= spans[i].start && at < spans[i].end) {
+            if (kind) {
+                *kind = spans[i].kind;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool field_as_param_context(const Row *row, size_t param_at)
+{
+    return param_at >= 3 && row->data[param_at - 3] == 'a' &&
+           row->data[param_at - 2] == 's' && row->data[param_at - 1] == ' ';
+}
+
+static size_t scan_attrs_before(const Row *row, size_t before_at,
+                                size_t line_first, BodyHighlightSpan *spans,
+                                size_t *count)
+{
+    size_t at = before_at;
+
+    for (;;) {
+        while (at > line_first && row->data[at - 1] == ' ') {
+            at--;
+        }
+        if (at < line_first + 1 || row->data[at - 1] != '@') {
+            break;
+        }
+        {
+            size_t attr_at = at - 1;
+            size_t name_start = attr_at + 1;
+            size_t name_end;
+
+            if (name_start >= row->length ||
+                !cg_name_start((unsigned char) row->data[name_start])) {
+                break;
+            }
+            name_end = skip_identifier(row, name_start);
+            body_highlight_add(spans, count, attr_at, name_end, BODY_HL_BUILTIN);
+            at = attr_at;
+        }
+    }
+    return at;
+}
+
+static void scan_inline_param_clauses(const Row *row, size_t line_first,
+                                      BodyHighlightSpan *spans, size_t *count)
+{
+    for (size_t at = line_first; at + 5 <= row->length; at++) {
+        if (!row_word_at(row, at, "param")) {
+            continue;
+        }
+        if (field_as_param_context(row, at)) {
+            continue;
+        }
+        if (at == line_first) {
+            continue;
+        }
+        if (at > line_first &&
+            cg_name_char((unsigned char) row->data[at - 1])) {
+            continue;
+        }
+        scan_attrs_before(row, at, line_first, spans, count);
+        body_highlight_add(spans, count, at, at + 5, BODY_HL_KEYWORD);
+        at += 5;
+        while (at < row->length && row->data[at] == ' ') {
+            at++;
+        }
+        if (at < row->length &&
+            cg_name_start((unsigned char) row->data[at])) {
+            size_t name_start = at;
+
+            at = skip_identifier(row, at);
+            body_highlight_add(spans, count, name_start, at, BODY_HL_NAME);
+        }
+        while (at < row->length && row->data[at] == ' ') {
+            at++;
+        }
+        if (at + 2 <= row->length && memcmp(row->data + at, "as", 2) == 0 &&
+            (at + 2 == row->length || row->data[at + 2] == ' ')) {
+            body_highlight_add(spans, count, at, at + 2, BODY_HL_KEYWORD);
+            at += 2;
+            while (at < row->length && row->data[at] == ' ') {
+                at++;
+            }
+            if (at < row->length &&
+                (cg_name_start((unsigned char) row->data[at]) ||
+                 row->data[at] == '.')) {
+                size_t type_start = at;
+
+                while (at < row->length &&
+                       (cg_name_char((unsigned char) row->data[at]) ||
+                        row->data[at] == '.')) {
+                    at++;
+                }
+                body_highlight_add(spans, count, type_start, at, BODY_HL_NAME);
+            }
+        }
+    }
+}
+
+static void scan_assignment_operators(const Row *row, size_t line_first,
+                                      BodyHighlightSpan *spans, size_t *count)
+{
+    for (size_t at = line_first; at < row->length;) {
+        size_t op_end = 0;
+
+        if (at + 2 < row->length &&
+            row->data[at] == '?' && row->data[at + 1] == '?' &&
+            row->data[at + 2] == '=') {
+            op_end = at + 3;
+        } else if (at + 1 < row->length &&
+                   memcmp(row->data + at, "=?", 2) == 0) {
+            op_end = at + 2;
+        } else if (at + 1 < row->length &&
+                   memcmp(row->data + at, "??", 2) == 0) {
+            op_end = at + 2;
+        } else if (at + 1 < row->length && row->data[at] == '?' &&
+                   row->data[at + 1] == ':') {
+            op_end = at + 2;
+        } else if (at + 1 < row->length &&
+                   memcmp(row->data + at, "?=", 2) == 0) {
+            op_end = at + 2;
+        } else {
+            at++;
+            continue;
+        }
+        body_highlight_add(spans, count, at, op_end, BODY_HL_OPERATOR);
+        at = op_end;
+    }
+}
+
+static void scan_body_line_highlights(const Row *row, size_t line_first,
+                                      BodyHighlightSpan *spans, size_t *count,
+                                      size_t *function_start,
+                                      size_t *function_end)
+{
+    *count = 0;
+    *function_start = 0;
+    *function_end = 0;
+
+    if (row->length - line_first > 5 &&
+        memcmp(row->data + line_first, "self.", 5) == 0) {
+        size_t at = line_first + 5;
+
+        if (at < row->length &&
+            cg_name_start((unsigned char) row->data[at])) {
+            *function_start = at;
+            at = skip_identifier(row, at);
+            *function_end = at;
+            while (at < row->length && row->data[at] == ' ') {
+                at++;
+            }
+            if (at < row->length && row->data[at] == ':') {
+                body_highlight_add(spans, count, at, at + 1, BODY_HL_OPERATOR);
+            }
+        }
+    }
+
+    scan_assignment_operators(row, line_first, spans, count);
+    scan_inline_param_clauses(row, line_first, spans, count);
 }
 
 static size_t highlight_declaration_as_clause(
@@ -3817,6 +4025,8 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
     size_t string_end = 0;
     size_t call_punctuation[CALL_PUNCTUATION_MAX];
     size_t call_punctuation_count = 0;
+    BodyHighlightSpan body_spans[BODY_HIGHLIGHT_MAX];
+    size_t body_span_count = 0;
     size_t drawn;
     size_t row_index = row >= editor.rows &&
                                row < editor.rows + editor.row_count
@@ -4012,6 +4222,9 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
         }
     }
 
+    scan_body_line_highlights(row, first, body_spans, &body_span_count,
+                              &function_start, &function_end);
+
     buffer_append(buffer, editor_theme, strlen(editor_theme));
     {
         size_t at = editor.col_offset;
@@ -4050,44 +4263,67 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                        at >= third_keyword_start &&
                        at < third_keyword_end) {
                 color = keyword_theme;
-            } else if (attribute_end > attribute_start &&
-                       at >= attribute_start && at < attribute_end) {
-                color = builtin_theme;
-            } else if (name_end > name_start &&
-                       at >= name_start && at < name_end) {
-                color = span_is_module_export(row, name_start, name_end)
-                    ? keyword_theme : name_theme;
-            } else if (type_end > type_start &&
-                       at >= type_start && at < type_end) {
-                color = name_theme;
-            } else if (at >= builtin_start && at < builtin_end) {
-                color = builtin_theme;
-            } else if (at >= function_start && at < function_end) {
-                color = name_theme;
-            } else if (string_end > string_start &&
-                       at >= string_start && at < string_end) {
-                color = string_theme;
-            } else if (at == colon) {
-                color = punctuation_theme;
-            } else if (dim_doc && at == first) {
-                color = doc_muted_theme;
             } else {
-                size_t ref_start = 0;
-                size_t ref_end = 0;
+                BodyHighlightKind body_kind;
 
-                if (dotted_ref_highlightable(row, &editor.semantic, at, &ref_start,
-                                             &ref_end)) {
+                if (body_highlight_kind_at(body_spans, body_span_count, at,
+                                           &body_kind)) {
+                    switch (body_kind) {
+                    case BODY_HL_KEYWORD:
+                        color = keyword_theme;
+                        break;
+                    case BODY_HL_NAME:
+                        color = name_theme;
+                        break;
+                    case BODY_HL_BUILTIN:
+                        color = builtin_theme;
+                        break;
+                    case BODY_HL_OPERATOR:
+                        color = punctuation_theme;
+                        break;
+                    }
+                } else if (attribute_end > attribute_start &&
+                           at >= attribute_start && at < attribute_end) {
+                    color = builtin_theme;
+                } else if (name_end > name_start &&
+                           at >= name_start && at < name_end) {
+                    color = span_is_module_export(row, name_start, name_end)
+                        ? keyword_theme : name_theme;
+                } else if (type_end > type_start &&
+                           at >= type_start && at < type_end) {
                     color = name_theme;
-                } else if (is_standalone_as(row, at)) {
-                    color = keyword_theme;
-                } else if (row->data[at] == '(' || row->data[at] == ')' ||
-                           row->data[at] == ',') {
+                } else if (at >= builtin_start && at < builtin_end) {
+                    color = builtin_theme;
+                } else if (at >= function_start && at < function_end) {
+                    color = name_theme;
+                } else if (string_end > string_start &&
+                           at >= string_start && at < string_end) {
+                    color = string_theme;
+                } else if (at == colon) {
                     color = punctuation_theme;
+                } else if (dim_doc && at == first) {
+                    color = doc_muted_theme;
                 } else {
-                    for (size_t i = 0; i < call_punctuation_count; i++) {
-                        if (at == call_punctuation[i]) {
-                            color = punctuation_theme;
-                            break;
+                    size_t ref_start = 0;
+                    size_t ref_end = 0;
+
+                    if (dotted_ref_highlightable(row, &editor.semantic, at,
+                                                 &ref_start, &ref_end)) {
+                        color = name_theme;
+                    } else if (span_is_self_reference(row, at, &ref_start,
+                                                      &ref_end)) {
+                        color = name_theme;
+                    } else if (is_standalone_as(row, at)) {
+                        color = keyword_theme;
+                    } else if (row->data[at] == '(' || row->data[at] == ')' ||
+                               row->data[at] == ',') {
+                        color = punctuation_theme;
+                    } else {
+                        for (size_t i = 0; i < call_punctuation_count; i++) {
+                            if (at == call_punctuation[i]) {
+                                color = punctuation_theme;
+                                break;
+                            }
                         }
                     }
                 }
@@ -4237,9 +4473,15 @@ static void refresh_screen(void)
         snprintf(status, sizeof(status), " Go to line: %s", editor.prompt_text);
         draw_bar(&output, status, position, palette->header);
     } else if (editor.prompt == IDE_PROMPT_RENAME) {
+        const int rename_field_max =
+            ((int) sizeof(status) - ((int) sizeof(" Rename ") - 1) -
+             ((int) sizeof(" -> ") - 1)) /
+            2;
+
         snprintf(position, sizeof(position), "Enter: rename  Esc: cancel ");
-        snprintf(status, sizeof(status), " Rename %s -> %s",
-                 editor.rename_qualified, editor.prompt_text);
+        snprintf(status, sizeof(status), " Rename %.*s -> %.*s",
+                 rename_field_max, editor.rename_qualified, rename_field_max,
+                 editor.prompt_text);
         draw_bar(&output, status, position, palette->header);
     } else if (editor.prompt == IDE_PROMPT_THEME) {
         const EditorTheme *live = current_theme();

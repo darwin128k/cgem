@@ -199,27 +199,7 @@ static bool symbol_name_known(const CgemSemantic *semantic, const char *name,
 static bool hints_reference_known(const IdeIndex *hints, const char *reference,
                                   size_t length)
 {
-    if (!hints || !reference || length == 0) {
-        return false;
-    }
-    for (size_t i = 0; i < hints->child_count; i++) {
-        const IdeScopeChild *edge = &hints->children[i];
-        size_t parent_length = strlen(edge->parent);
-        size_t child_length = strlen(edge->child);
-        size_t full_length = parent_length + 1 + child_length;
-
-        if (full_length != length) {
-            continue;
-        }
-        if (memcmp(reference, edge->parent, parent_length) != 0 ||
-            reference[parent_length] != '.' ||
-            memcmp(reference + parent_length + 1, edge->child,
-                   child_length) != 0) {
-            continue;
-        }
-        return true;
-    }
-    return false;
+    return ide_index_reference_known(hints, reference, length, false);
 }
 
 bool cgem_semantic_reference_known(const CgemSemantic *semantic,

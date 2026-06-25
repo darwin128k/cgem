@@ -3754,7 +3754,7 @@ static bool row_word_at(const Row *row, size_t at, const char *word)
     return next == '\0' || next == ' ';
 }
 
-#define BODY_HIGHLIGHT_MAX 24
+#define BODY_HIGHLIGHT_MAX 64
 
 typedef enum {
     BODY_HL_KEYWORD,
@@ -4021,34 +4021,371 @@ static void scan_inline_param_clauses(const Row *row, size_t line_first,
     }
 }
 
-static void scan_assignment_operators(const Row *row, size_t line_first,
-                                      BodyHighlightSpan *spans, size_t *count)
+static bool row_matches_op2(const Row *row, size_t at, char a, char b)
 {
-    for (size_t at = line_first; at < row->length;) {
-        size_t op_end = 0;
+    return at + 2 <= row->length && row->data[at] == a && row->data[at + 1] == b;
+}
 
-        if (at + 2 < row->length &&
-            row->data[at] == '?' && row->data[at + 1] == '?' &&
-            row->data[at + 2] == '=') {
-            op_end = at + 3;
-        } else if (at + 1 < row->length &&
-                   memcmp(row->data + at, "=?", 2) == 0) {
-            op_end = at + 2;
-        } else if (at + 1 < row->length &&
-                   memcmp(row->data + at, "??", 2) == 0) {
-            op_end = at + 2;
-        } else if (at + 1 < row->length && row->data[at] == '?' &&
-                   row->data[at + 1] == ':') {
-            op_end = at + 2;
-        } else if (at + 1 < row->length &&
-                   memcmp(row->data + at, "?=", 2) == 0) {
-            op_end = at + 2;
-        } else {
+static bool row_matches_op3(const Row *row, size_t at, char a, char b, char c)
+{
+    return at + 3 <= row->length && row->data[at] == a && row->data[at + 1] == b &&
+           row->data[at + 2] == c;
+}
+
+static size_t row_elvis_operator_length(const Row *row, size_t at)
+{
+    size_t probe;
+
+    if (!row || at >= row->length || row->data[at] != '?' ||
+        (at + 1 < row->length && row->data[at + 1] == '?')) {
+        return 0;
+    }
+    probe = at + 1;
+    while (probe < row->length && row->data[probe] == ' ') {
+        probe++;
+    }
+    if (probe < row->length && row->data[probe] == ':') {
+        return probe - at + 1;
+    }
+    return 0;
+}
+
+static size_t row_ternary_colon_at(const Row *row, size_t question_at)
+{
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+    size_t colon = (size_t) -1;
+
+    if (!row || question_at >= row->length) {
+        return (size_t) -1;
+    }
+    for (size_t i = question_at + 1; i < row->length; i++) {
+        char ch = row->data[i];
+
+        if (in_string) {
+            if (ch == '"' && !escaped) {
+                in_string = false;
+            }
+            escaped = ch == '\\' && !escaped;
+            if (ch != '\\') {
+                escaped = false;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = true;
+            escaped = false;
+            continue;
+        }
+        if (ch == '(') {
+            depth++;
+            continue;
+        }
+        if (ch == ')' && depth > 0) {
+            depth--;
+            continue;
+        }
+        if (depth == 0 && ch == ':') {
+            colon = i;
+        }
+    }
+    return colon;
+}
+
+static void scan_conditional_operators(const Row *row, size_t line_first,
+                                       BodyHighlightSpan *spans, size_t *count)
+{
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+
+    if (!row) {
+        return;
+    }
+    for (size_t i = line_first; i < row->length; i++) {
+        char ch = row->data[i];
+
+        if (in_string) {
+            if (ch == '"' && !escaped) {
+                in_string = false;
+            }
+            escaped = ch == '\\' && !escaped;
+            if (ch != '\\') {
+                escaped = false;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = true;
+            escaped = false;
+            continue;
+        }
+        if (ch == '@') {
+            while (i < row->length && row->data[i] != ' ' && row->data[i] != '(') {
+                i++;
+            }
+            continue;
+        }
+        if (ch == '(') {
+            depth++;
+            continue;
+        }
+        if (ch == ')' && depth > 0) {
+            depth--;
+            continue;
+        }
+        if (depth != 0 || ch != '?' || (i + 1 < row->length && row->data[i + 1] == '?')) {
+            continue;
+        }
+        {
+            size_t elvis = row_elvis_operator_length(row, i);
+
+            if (elvis > 0) {
+                body_highlight_add(spans, count, i, i + elvis, BODY_HL_OPERATOR);
+                i += elvis - 1;
+                continue;
+            }
+        }
+        {
+            size_t probe = i + 1;
+            size_t colon;
+
+            while (probe < row->length && row->data[probe] == ' ') {
+                probe++;
+            }
+            if (probe < row->length && row->data[probe] == ':') {
+                continue;
+            }
+            colon = row_ternary_colon_at(row, i);
+            if (colon != (size_t) -1) {
+                body_highlight_add(spans, count, i, i + 1, BODY_HL_OPERATOR);
+                body_highlight_add(spans, count, colon, colon + 1,
+                                   BODY_HL_OPERATOR);
+            }
+        }
+    }
+}
+
+static size_t operator_token_length(const Row *row, size_t at)
+{
+    size_t elvis;
+
+    if (!row || at >= row->length) {
+        return 0;
+    }
+    elvis = row_elvis_operator_length(row, at);
+    if (elvis > 0) {
+        return elvis;
+    }
+    if (row_matches_op3(row, at, '?', '?', '=')) {
+        return 3;
+    }
+    if (row_matches_op3(row, at, '<', '<', '=')) {
+        return 3;
+    }
+    if (row_matches_op3(row, at, '>', '>', '=')) {
+        return 3;
+    }
+    if (row_matches_op2(row, at, '?', '?')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '?', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '=', '?')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '=', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '!', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '<', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '>', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '<', '<')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '>', '>')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '&', '&')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '|', '|')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '+', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '-', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '*', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '/', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '%', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '&', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '|', '=')) {
+        return 2;
+    }
+    if (row_matches_op2(row, at, '^', '=')) {
+        return 2;
+    }
+    switch (row->data[at]) {
+    case '=':
+    case '?':
+    case ':':
+    case '+':
+    case '-':
+    case '*':
+    case '/':
+    case '%':
+    case '&':
+    case '|':
+    case '^':
+    case '~':
+    case '!':
+    case '<':
+    case '>':
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static bool row_position_in_string(const Row *row, size_t at)
+{
+    bool in_string = false;
+    bool escaped = false;
+
+    if (!row) {
+        return false;
+    }
+    for (size_t i = 0; i < at && i < row->length; i++) {
+        char ch = row->data[i];
+
+        if (in_string) {
+            if (ch == '"' && !escaped) {
+                in_string = false;
+            }
+            escaped = ch == '\\' && !escaped;
+            if (ch != '\\') {
+                escaped = false;
+            }
+        } else if (ch == '"') {
+            in_string = true;
+            escaped = false;
+        }
+    }
+    return in_string;
+}
+
+static bool operator_highlight_at(const Row *row, size_t at)
+{
+    if (!row || at >= row->length || row_position_in_string(row, at)) {
+        return false;
+    }
+    for (size_t back = 0; back < 3 && at >= back; back++) {
+        size_t pos = at - back;
+        size_t len = operator_token_length(row, pos);
+
+        if (len > 0 && pos + len > at) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void scan_line_operators(const Row *row, size_t line_first,
+                                BodyHighlightSpan *spans, size_t *count)
+{
+    size_t at = line_first;
+
+    if (!row) {
+        return;
+    }
+    while (at < row->length) {
+        if (row->data[at] == ' ') {
             at++;
             continue;
         }
-        body_highlight_add(spans, count, at, op_end, BODY_HL_OPERATOR);
-        at = op_end;
+        if (row->data[at] == '"') {
+            size_t string_start = 0;
+            size_t string_end = 0;
+
+            at = scan_highlight_string(row, at, &string_start, &string_end);
+            continue;
+        }
+        if (row->data[at] == '@') {
+            at++;
+            at = skip_identifier(row, at);
+            if (at < row->length && row->data[at] == '(') {
+                at++;
+                while (at < row->length && row->data[at] != ')') {
+                    if (row->data[at] == '"') {
+                        size_t string_start = 0;
+                        size_t string_end = 0;
+
+                        at = scan_highlight_string(row, at, &string_start,
+                                                   &string_end);
+                    } else {
+                        at++;
+                    }
+                }
+                if (at < row->length && row->data[at] == ')') {
+                    at++;
+                }
+            }
+            continue;
+        }
+        if (cg_name_start((unsigned char) row->data[at])) {
+            at = skip_identifier(row, at);
+            while (at + 1 < row->length && row->data[at] == '.' &&
+                   cg_name_start((unsigned char) row->data[at + 1])) {
+                at++;
+                at = skip_identifier(row, at);
+            }
+            continue;
+        }
+        if (isdigit((unsigned char) row->data[at])) {
+            while (at < row->length &&
+                   isdigit((unsigned char) row->data[at])) {
+                at++;
+            }
+            continue;
+        }
+        {
+            size_t op_len = operator_token_length(row, at);
+
+            if (op_len > 0) {
+                body_highlight_add(spans, count, at, at + op_len,
+                                   BODY_HL_OPERATOR);
+                at += op_len;
+                continue;
+            }
+        }
+        if (row->data[at] == '(' || row->data[at] == ')' ||
+            row->data[at] == ',' || row->data[at] == '[' ||
+            row->data[at] == ']' || row->data[at] == '{' ||
+            row->data[at] == '}') {
+            body_highlight_add(spans, count, at, at + 1, BODY_HL_OPERATOR);
+            at++;
+            continue;
+        }
+        at++;
     }
 }
 
@@ -4082,8 +4419,9 @@ static void scan_body_line_highlights(const Row *row, size_t line_first,
 
     scan_line_attributes(row, line_first, spans, count);
     scan_param_as_clause(row, line_first, spans, count);
-    scan_assignment_operators(row, line_first, spans, count);
     scan_inline_param_clauses(row, line_first, spans, count);
+    scan_line_operators(row, line_first, spans, count);
+    scan_conditional_operators(row, line_first, spans, count);
 }
 
 static size_t highlight_declaration_as_clause(
@@ -4469,6 +4807,8 @@ static void draw_editor_row(Buffer *buffer, const Row *row, int content_cols,
                         color = name_theme;
                     } else if (is_standalone_as(row, at)) {
                         color = keyword_theme;
+                    } else if (operator_highlight_at(row, at)) {
+                        color = punctuation_theme;
                     } else if (row->data[at] == '(' || row->data[at] == ')' ||
                                row->data[at] == ',') {
                         color = punctuation_theme;

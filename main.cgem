@@ -149,10 +149,15 @@ package lh:
 
         module flags:
             enum module as lh.byte:
-                case closed
+                case closed = 0
                 case ropen = 1 << 0
                 case lopen = 1 << 1
                 case open  = lh.interval.flags.lopen | lh.interval.flags.ropen
+
+        module fields:
+            struct module:
+                field bounds as param bounds_type
+                field flags as lh.interval.flags
 
     package version:
         module fields:

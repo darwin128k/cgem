@@ -848,6 +848,7 @@ static bool const_eval_at_end(ConstEvalCtx *ctx)
 }
 
 static bool const_eval_expr(ConstEvalCtx *ctx, long long *value);
+static bool const_eval_conditional(ConstEvalCtx *ctx, long long *value);
 static bool const_eval_or(ConstEvalCtx *ctx, long long *value);
 static bool const_eval_and(ConstEvalCtx *ctx, long long *value);
 static bool const_eval_bitor(ConstEvalCtx *ctx, long long *value);
@@ -1203,9 +1204,50 @@ static bool const_eval_or(ConstEvalCtx *ctx, long long *value)
     return true;
 }
 
+static bool const_eval_conditional(ConstEvalCtx *ctx, long long *value)
+{
+    long long then_val;
+    long long else_val;
+    size_t probe;
+
+    if (!const_eval_or(ctx, value)) {
+        return false;
+    }
+    ctx->at = skip_const_spaces(ctx->at);
+    if (ctx->at[0] != '?' || ctx->at[1] == '?') {
+        return true;
+    }
+    probe = 1;
+    while (ctx->at[probe] == ' ') {
+        probe++;
+    }
+    if (ctx->at[probe] == ':') {
+        ctx->at = skip_const_spaces(ctx->at + probe + 1);
+        if (!const_eval_conditional(ctx, &else_val)) {
+            return false;
+        }
+        *value = *value ? *value : else_val;
+        return true;
+    }
+    ctx->at++;
+    if (!const_eval_conditional(ctx, &then_val)) {
+        return false;
+    }
+    ctx->at = skip_const_spaces(ctx->at);
+    if (ctx->at[0] != ':') {
+        return false;
+    }
+    ctx->at++;
+    if (!const_eval_conditional(ctx, &else_val)) {
+        return false;
+    }
+    *value = *value ? then_val : else_val;
+    return true;
+}
+
 static bool const_eval_expr(ConstEvalCtx *ctx, long long *value)
 {
-    return const_eval_or(ctx, value);
+    return const_eval_conditional(ctx, value);
 }
 
 static bool eval_const_integer_expr(const char *text, Symbol *symbols,
@@ -2113,6 +2155,100 @@ static bool find_top_level_elvis(const char *expression, size_t *question_at,
     return false;
 }
 
+static size_t find_ternary_colon_at(const char *expression, size_t question_at)
+{
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+    size_t colon = (size_t) -1;
+
+    for (size_t i = question_at + 1; expression[i] != '\0'; i++) {
+        char ch = expression[i];
+
+        if (in_string) {
+            if (ch == '"' && !escaped) {
+                in_string = false;
+            }
+            escaped = ch == '\\' && !escaped;
+            if (ch != '\\') {
+                escaped = false;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = true;
+            escaped = false;
+            continue;
+        }
+        if (ch == '(') {
+            depth++;
+            continue;
+        }
+        if (ch == ')' && depth > 0) {
+            depth--;
+            continue;
+        }
+        if (depth == 0 && ch == ':') {
+            colon = i;
+        }
+    }
+    return colon;
+}
+
+static bool find_top_level_ternary(const char *expression, size_t *question_at,
+                                   size_t *colon_at)
+{
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+
+    for (size_t i = 0; expression[i] != '\0'; i++) {
+        char ch = expression[i];
+
+        if (in_string) {
+            if (ch == '"' && !escaped) {
+                in_string = false;
+            }
+            escaped = ch == '\\' && !escaped;
+            if (ch != '\\') {
+                escaped = false;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = true;
+            escaped = false;
+            continue;
+        }
+        if (ch == '(') {
+            depth++;
+            continue;
+        }
+        if (ch == ')' && depth > 0) {
+            depth--;
+            continue;
+        }
+        if (depth == 0 && ch == '?' && expression[i + 1] != '?') {
+            size_t probe = i + 1;
+            size_t colon;
+
+            while (expression[probe] == ' ') {
+                probe++;
+            }
+            if (expression[probe] != ':') {
+                colon = find_ternary_colon_at(expression, i);
+                if (colon != (size_t) -1) {
+                    *question_at = i;
+                    *colon_at = colon;
+                    return true;
+                }
+                return false;
+            }
+        }
+    }
+    return false;
+}
+
 static char *transform_function_expression(
     const char *expression, FunctionOutput *function, Symbol *symbols,
     size_t symbol_count, ModuleOutput *module, HeaderDeps **header_deps,
@@ -2212,6 +2348,59 @@ static char *transform_function_expression(
                  "((%s) ? (%s) : (%s))", c_left, c_left, c_right);
         free(c_left);
         free(c_right);
+        return out;
+    }
+    if (find_top_level_ternary(expression, &operator_at, &colon_at)) {
+        char *cond = copy_trimmed_text(expression, operator_at);
+        char *then_part = copy_trimmed_text(expression + operator_at + 1,
+                                           colon_at - (operator_at + 1));
+        char *else_part = copy_trimmed_text(expression + colon_at + 1,
+                                            strlen(expression + colon_at + 1));
+        char *c_cond;
+        char *c_then;
+        char *c_else;
+
+        if (!cond || !then_part || !else_part) {
+            free(cond);
+            free(then_part);
+            free(else_part);
+            cg_set_error(error, error_size, "out of memory");
+            return NULL;
+        }
+        c_cond = transform_function_expression(
+            cond, function, symbols, symbol_count, module, header_deps,
+            header_deps_count, header_deps_capacity, line_number, error,
+            error_size);
+        c_then = c_cond ? transform_function_expression(
+            then_part, function, symbols, symbol_count, module, header_deps,
+            header_deps_count, header_deps_capacity, line_number, error,
+            error_size) : NULL;
+        c_else = c_then ? transform_function_expression(
+            else_part, function, symbols, symbol_count, module, header_deps,
+            header_deps_count, header_deps_capacity, line_number, error,
+            error_size) : NULL;
+        free(cond);
+        free(then_part);
+        free(else_part);
+        if (!c_cond || !c_then || !c_else) {
+            free(c_cond);
+            free(c_then);
+            free(c_else);
+            return NULL;
+        }
+        out = malloc(strlen(c_cond) + strlen(c_then) + strlen(c_else) + 12);
+        if (!out) {
+            free(c_cond);
+            free(c_then);
+            free(c_else);
+            cg_set_error(error, error_size, "out of memory");
+            return NULL;
+        }
+        snprintf(out, strlen(c_cond) + strlen(c_then) + strlen(c_else) + 12,
+                 "((%s) ? (%s) : (%s))", c_cond, c_then, c_else);
+        free(c_cond);
+        free(c_then);
+        free(c_else);
         return out;
     }
     for (size_t i = 0; expression[i] != '\0';) {

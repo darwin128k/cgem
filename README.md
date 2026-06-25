@@ -807,10 +807,20 @@ fn ensure:
 
 **`?:` — Elvis operator.** Shorthand ternary: `left ?: right` means
 `left ? left : right`. The condition uses C truthiness (non-zero integers and
-non-null pointers are kept).
+non-null pointers are kept). Spaces are allowed: `left ? : right`.
 
 ```text
 return name ?: "default"
+```
+
+**`? :` — Ternary operator.** Classic conditional: `cond ? then : else`.
+Right-associative, so `a ? b : c ? d : e` means `a ? b : (c ? d : e)`.
+Works in function expressions and in compile-time integer constants (`enum`
+case values).
+
+```text
+return flag ? self.major : self.minor
+case high = value > 10 ? 1 : 0
 ```
 
 **`=?` — optional pointer read (CGEM-specific).** When the right-hand pointer

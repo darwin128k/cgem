@@ -256,3 +256,11 @@ package lh:
             struct module:
                 field code as param code_type
                 field desc as param desc_type
+
+        module desc:
+            @define
+            type module as lh.str.raw
+
+    module error:
+        struct module:
+            lh.error.fields(lh.error.code, lh.error.desc)

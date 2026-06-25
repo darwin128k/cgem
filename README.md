@@ -343,6 +343,15 @@ needed. The block form is also supported:
     type as lh.interval.bounds.fields
 ```
 
+`@require(type)` means the metaparameter may be any type. `@require(type as
+<struct>)` is a compile-time constraint only — it is not emitted into C. When
+the struct template macro is instantiated, the generator resolves `type … as …`
+aliases and checks that the substituted struct matches the required template by
+leading field names. Fields in the requirement that still use metaparameters are
+not type-checked; fields with concrete types must match (including through
+aliases). A struct with extra trailing fields can still satisfy the constraint
+if the required prefix matches.
+
 A `struct` with parameters generates a field macro:
 
 ```text
@@ -909,3 +918,37 @@ This generates:
 On fields, `@expand` controls whether a pointer to a known DSL type uses its
 C symbol or expanded C expression. Template parameters such as `T` are emitted
 as-is because they are macro parameters, not DSL symbols.
+
+## Releases
+
+Version history lives in [CHANGELOG.md](CHANGELOG.md). Each release is tagged on
+GitHub as `v0.2.0`, `v0.1.0`, and so on.
+
+CI does **not** diff commits or guess what changed. When a tag is pushed, the
+release workflow reads **only** the matching section from `CHANGELOG.md`:
+
+```text
+## 0.2.0 - 2026-06-25
+…notes for this version only…
+
+## 0.1.0 - …
+…older notes; not included in the v0.2.0 release page…
+```
+
+The tag `v0.2.0` maps to the heading `## 0.2.0`; everything until the next `##`
+becomes the GitHub release description. Visitors on the **Releases** tab see
+only that block for the version they open — not fixes listed under older
+versions.
+
+If the section is missing or empty, CI falls back to GitHub’s auto-generated
+notes (`--generate-notes`), which *do* list commits since the previous tag and
+can mix unrelated history. For a clean release page, always add a `## X.Y.Z`
+section before tagging.
+
+Typical flow when merging to `main`:
+
+1. Finish the version block in `CHANGELOG.md` (date and bullets).
+2. Commit and merge to `main`.
+3. Create and push an annotated tag: `git tag v0.2.0` && `git push origin v0.2.0`.
+4. CI builds artifacts and publishes the release with the extracted changelog
+   text.

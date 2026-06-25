@@ -2,18 +2,25 @@
 
 All notable changes to CGEM are documented in this file.
 
+Release notes on GitHub are taken from the section that matches the tag
+(`v0.2.0` → `## 0.2.0`). See [Releases](README.md#releases) in the README.
+
 ## 0.2.0 - 2026-06-25
 
 ### Added
 
 - Live semantic analysis in the IDE: symbol table adoption from compile,
   debounced re-analysis (~400 ms), and diagnostics without a full generate.
-- Lint rules E001–E003 for unknown references and related issues during
-  analysis.
+- `@require(type)`, `@require(value)`, and `@require(type as <struct>)` inline
+  parenthesis syntax, plus block form `@require:` with an indented specification
+  line (no backward compatibility with bare `@require type`).
+- Compile-time validation of `@require(type as <struct>)`: resolves `type … as …`
+  alias chains and checks that the substituted struct template matches the
+  required layout by leading field names; metaparameter field types in the
+  requirement are unconstrained, concrete field types must match (through
+  aliases when needed).
 - `SymbolKind` and `type_dsl_name` on semantic symbols; completion uses the
   symbol table.
-- Type-check pass (`typecheck.c`): E101–E102 for param, field, return, and
-  `let` type references against known symbols.
 - Workspace definition index (`semantic_nav.c`): go-to-definition, rename,
   cross-file navigation, and merged workspace symbols.
 - IDE key bindings: `Ctrl+D` go to definition, `Ctrl+P` rename, `Ctrl+N` find
@@ -22,18 +29,30 @@ All notable changes to CGEM are documented in this file.
   the point of use (`self.field = param …`, `self.field =? param …`,
   `@pointer @mutable param … ?= rhs`); lowers to the same C signature and body
   as separate `param` lines.
+- IDE syntax highlighting for `type`, `value`, and `as` inside `@require(...)`.
 
 ### Changed
 
+- IDE diagnostics come only from the compiler (`cgem_analyze`); the editor and
+  **Generate** share one source of truth instead of a separate typecheck/lint
+  pass in the IDE.
+- Stale error line highlights clear as soon as you edit the buffer and after a
+  successful generate; semantic re-analysis is skipped while compile diagnostics
+  are present (no cascading bogus errors below a syntax failure).
 - `lh.version` `pack`, `unpack`, and `set_*` in `main.cgem` use inline `param`
   syntax; `unpack` writes through optional out-pointers with `?= self.field`.
-- README documents CGEM direction, inline `param`, and updated IDE shortcuts.
+- `lh.interval.fields` uses `@require(type as lh.interval.bounds.fields)` on
+  `bounds_type`.
+- README documents CGEM direction, `@require`, inline `param`, releases, and
+  updated IDE shortcuts.
 
 ### Fixed
 
 - Segfault when optional parser out-parameters were `NULL` (`cg_parse_case`,
   `cg_parse_type`, `cg_parse_let`) during IDE analysis.
 - `semantic_nav.c` definition indexing after a corrupted `cg_parse_fn` guard.
+- `@require(type as …)` inside a struct was rejected as an unsupported inline
+  attribute instead of being parsed as a parameter constraint.
 
 ## 0.1.0 - 2026-06-24
 

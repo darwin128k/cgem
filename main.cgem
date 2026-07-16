@@ -14,6 +14,7 @@ package lh:
                 param a
                 return lh.math.add(a, 1)
 
+        @wrap
         fn sub:
             @require(value)
             param a
@@ -27,6 +28,7 @@ package lh:
                 param a
                 return lh.math.sub(a, 1)
 
+        @wrap
         fn mul:
             @require(value)
             param a
@@ -34,6 +36,7 @@ package lh:
             param b
             return a * b
 
+        @wrap
         fn div:
             @require(value)
             param a
@@ -41,6 +44,7 @@ package lh:
             param b
             return a / b
 
+        @wrap
         fn mod:
             @require(value)
             param a
@@ -48,11 +52,13 @@ package lh:
             param b
             return a % b
 
+        @wrap
         fn neg:
             @require(value)
             param a
             return -a
 
+        @wrap
         fn eq:
             @require(value)
             param a
@@ -60,6 +66,7 @@ package lh:
             param b
             return a == b
 
+        @wrap
         fn ne:
             @require(value)
             param a
@@ -67,6 +74,7 @@ package lh:
             param b
             return a != b
 
+        @wrap
         fn lt:
             @require(value)
             param a
@@ -74,6 +82,7 @@ package lh:
             param b
             return a < b
 
+        @wrap
         fn le:
             @require(value)
             param a
@@ -81,6 +90,7 @@ package lh:
             param b
             return a <= b
 
+        @wrap
         fn gt:
             @require(value)
             param a
@@ -88,6 +98,7 @@ package lh:
             param b
             return a > b
 
+        @wrap
         fn ge:
             @require(value)
             param a
@@ -134,11 +145,13 @@ package lh:
             return lh.math.lt(v, 0)
 
         scope bit:
+            @wrap
             fn mask:
                 @require(value)
                 param n
                 return 1u << n
 
+            @wrap
             fn and:
                 @require(value)
                 param a

@@ -1860,6 +1860,42 @@ static bool completion_token_is_local(size_t row_index, const char *token,
     return false;
 }
 
+static const char *require_value_ghost(const Row *row, size_t indent,
+                                       size_t cursor_x, bool *in_require_value)
+{
+    static const char *choices[] = {"type", "value"};
+    static const char prefix[] = "@require(";
+    size_t prefix_length = strlen(prefix);
+    size_t paren = indent + prefix_length;
+    size_t token_length;
+    const char *as_pos;
+
+    *in_require_value = false;
+    if (row->length < indent || row->length - indent < prefix_length ||
+        memcmp(row->data + indent, prefix, prefix_length) != 0 ||
+        cursor_x < paren || cursor_x > row->length) {
+        return NULL;
+    }
+    as_pos = strstr(row->data + paren, " as ");
+    if (as_pos != NULL && as_pos < row->data + cursor_x) {
+        return NULL;
+    }
+    *in_require_value = true;
+    token_length = cursor_x - paren;
+    if (token_length == 0) {
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(choices) / sizeof(choices[0]); i++) {
+        size_t length = strlen(choices[i]);
+
+        if (token_length < length &&
+            memcmp(row->data + paren, choices[i], token_length) == 0) {
+            return choices[i] + token_length;
+        }
+    }
+    return NULL;
+}
+
 static const char *keyword_ghost(const Row *row, size_t row_index,
                                  bool *trailing_space)
 {
@@ -1964,6 +2000,15 @@ static const char *keyword_ghost(const Row *row, size_t row_index,
                 return "s";
             }
         }
+    }
+    }
+    {
+    bool in_require_value = false;
+    const char *require_ghost = require_value_ghost(row, indent, editor.cursor_x,
+                                                     &in_require_value);
+
+    if (in_require_value) {
+        return require_ghost;
     }
     }
     {

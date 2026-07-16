@@ -9,4 +9,8 @@
 
 #define lh_math_div(a, b) (a / b)
 
+#define lh_math_mod(a, b) (a % b)
+
+#define lh_math_neg(a) (-a)
+
 #endif /* LH_MATH_H */

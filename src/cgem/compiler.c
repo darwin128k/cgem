@@ -4639,6 +4639,7 @@ int cgem_compile(FILE *input, const char *include_path,
                     function_output.return_expr = return_expr;
                     function_output.return_cast_type = cast_c_type;
                     function_output.has_return = true;
+                    function_output.return_line = line_number;
                     cg_free_field_type(&cast_type);
                     continue;
                 }
@@ -4669,6 +4670,7 @@ int cgem_compile(FILE *input, const char *include_path,
                         function_output.return_expr = return_expr;
                         function_output.return_cast_type = cast_c_type;
                         function_output.has_return = true;
+                        function_output.return_line = line_number;
                         cg_free_field_type(&cast_type);
                         continue;
                     }
@@ -4732,6 +4734,7 @@ int cgem_compile(FILE *input, const char *include_path,
             function_output.return_expr = return_expr;
             function_output.return_cast_type = cast_c_type;
             function_output.has_return = true;
+            function_output.return_line = line_number;
             cg_free_field_type(&cast_type);
             continue;
         }

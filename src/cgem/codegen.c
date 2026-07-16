@@ -671,10 +671,18 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
             output->return_cast_type || output->local_count > 0 ||
             output->arg_count > 0 ||
             !(valid_initializer || valid_expression)) {
-            cg_set_error(error, error_size,
-                         "parameterized fn requires a single inline "
-                         "c.initializer(...), initializer macro, or "
-                         "expression return");
+            if (output->return_line > 0) {
+                cg_set_error(error, error_size,
+                             "line %zu: parameterized fn requires a single "
+                             "inline c.initializer(...), initializer macro, "
+                             "or expression return",
+                             output->return_line);
+            } else {
+                cg_set_error(error, error_size,
+                             "parameterized fn requires a single inline "
+                             "c.initializer(...), initializer macro, or "
+                             "expression return");
+            }
             result = -1;
             goto done;
         }

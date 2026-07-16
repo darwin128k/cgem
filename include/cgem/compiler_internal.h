@@ -229,6 +229,7 @@ typedef struct {
     bool use_source;
     bool emit;
     bool has_return;
+    size_t return_line;
     bool return_is_call;
     bool local_mutable;
     bool local_used;

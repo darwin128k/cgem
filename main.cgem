@@ -28,6 +28,18 @@ package lh:
             param b
             return a / b
 
+        fn mod:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a % b
+
+        fn neg:
+            @require(value)
+            param a
+            return -a
+
     module initializer:
         fn module:
             param values as ...

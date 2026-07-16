@@ -1,11 +1,32 @@
 package lh:
     module math:
         fn add:
-            @require(type)
+            @require(value)
             param a
-            @require(type)
+            @require(value)
             param b
             return a + b
+
+        fn sub:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a - b
+
+        fn mul:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a * b
+
+        fn div:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a / b
 
     module initializer:
         fn module:

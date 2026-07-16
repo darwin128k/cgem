@@ -24,6 +24,8 @@ static const char term_mouse_off[] = "\x1b[?1002l\x1b[?1006l\x1b[?1007l";
 static const char term_alt_on[] = "\x1b[?1049h";
 static const char term_alt_off[] = "\x1b[?1049l";
 static const char term_show_cursor[] = "\x1b[0m\x1b[?25h";
+static const char term_cursor_block[] = "\x1b[2 q";
+static const char term_cursor_reset[] = "\x1b[0 q";
 static const char term_clear_screen[] = "\x1b[0m\x1b[2J\x1b[H";
 
 static void terminal_die(const char *message)
@@ -55,11 +57,13 @@ bool platform_terminal_init(void)
     platform_terminal_write(term_alt_on, sizeof(term_alt_on) - 1);
     platform_terminal_write(term_clear_screen, sizeof(term_clear_screen) - 1);
     platform_terminal_write(term_mouse_on, sizeof(term_mouse_on) - 1);
+    platform_terminal_write(term_cursor_block, sizeof(term_cursor_block) - 1);
     return true;
 }
 
 void platform_terminal_shutdown(void)
 {
+    platform_terminal_write(term_cursor_reset, sizeof(term_cursor_reset) - 1);
     platform_terminal_write(term_mouse_off, sizeof(term_mouse_off) - 1);
     platform_terminal_write(term_alt_off, sizeof(term_alt_off) - 1);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);

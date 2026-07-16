@@ -37,6 +37,7 @@ static HANDLE console_out;
 static DWORD original_in_mode;
 static DWORD original_out_mode;
 static CONSOLE_SCREEN_BUFFER_INFO original_info;
+static CONSOLE_CURSOR_INFO original_cursor_info;
 static COORD cursor;
 static WORD current_attr = 7;
 static bool cursor_visible = true;
@@ -453,6 +454,12 @@ bool platform_terminal_init(void)
     if (!GetConsoleScreenBufferInfo(console_out, &original_info)) {
         terminal_die("GetConsoleScreenBufferInfo");
     }
+    if (GetConsoleCursorInfo(console_out, &original_cursor_info)) {
+        CONSOLE_CURSOR_INFO block_info = original_cursor_info;
+
+        block_info.dwSize = 100;
+        SetConsoleCursorInfo(console_out, &block_info);
+    }
     if (!GetConsoleMode(console_in, &original_in_mode) ||
         !GetConsoleMode(console_out, &original_out_mode)) {
         terminal_die("GetConsoleMode");
@@ -480,6 +487,9 @@ bool platform_terminal_init(void)
     fg_intense = (current_attr & 0x08) != 0;
     vt_out_mode = out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     virtual_terminal = SetConsoleMode(console_out, vt_out_mode) != 0;
+    if (virtual_terminal) {
+        write_raw("\x1b[2 q", 5);
+    }
     sync_console_buffer();
     terminal_ready = true;
     atexit(platform_terminal_shutdown);
@@ -492,9 +502,10 @@ void platform_terminal_shutdown(void)
         return;
     }
     if (virtual_terminal) {
-        write_raw("\x1b[0m\x1b[?25h", 11);
+        write_raw("\x1b[0 q\x1b[0m\x1b[?25h", 16);
     } else {
         hide_cursor(false);
+        SetConsoleCursorInfo(console_out, &original_cursor_info);
     }
     SetConsoleMode(console_in, original_in_mode);
     SetConsoleMode(console_out, original_out_mode);

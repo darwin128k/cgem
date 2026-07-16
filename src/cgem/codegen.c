@@ -664,12 +664,11 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
     if (output->has_meta_params) {
         bool valid_initializer = output->return_is_initializer &&
                                  output->initializer_value_count > 0;
-        bool valid_expression = !output->return_is_initializer &&
-                                !output->return_is_call;
+        bool valid_expression = !output->return_is_initializer;
 
         if (!output->has_return || !output->return_expr ||
             output->return_cast_type || output->local_count > 0 ||
-            output->arg_count > 0 ||
+            (output->arg_count > 0 && !output->return_is_call) ||
             !(valid_initializer || valid_expression)) {
             if (output->return_line > 0) {
                 cg_set_error(error, error_size,
@@ -740,6 +739,35 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
         } else if (output->return_is_initializer) {
             if (cg_module_body_printf(output->module, ") {%s}\n",
                                       output->return_expr) != 0) {
+                cg_set_error(error, error_size, "out of memory");
+                result = -1;
+                goto done;
+            }
+        } else if (output->return_is_call) {
+            if (cg_module_body_printf(output->module, ") (%s(",
+                                      output->return_expr) != 0) {
+                cg_set_error(error, error_size, "out of memory");
+                result = -1;
+                goto done;
+            }
+            for (size_t i = 0; i < output->arg_count; i++) {
+                if (output->args[i].is_ref) {
+                    if (cg_module_body_printf(output->module, "%s&(%s)",
+                                              i ? ", " : "",
+                                              output->args[i].value) != 0) {
+                        cg_set_error(error, error_size, "out of memory");
+                        result = -1;
+                        goto done;
+                    }
+                } else if (cg_module_body_printf(output->module, "%s%s",
+                                                 i ? ", " : "",
+                                                 output->args[i].value) != 0) {
+                    cg_set_error(error, error_size, "out of memory");
+                    result = -1;
+                    goto done;
+                }
+            }
+            if (cg_module_body_printf(output->module, "))\n") != 0) {
                 cg_set_error(error, error_size, "out of memory");
                 result = -1;
                 goto done;

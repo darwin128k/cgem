@@ -3,6 +3,8 @@
 
 #define lh_math_add(a, b) (a + b)
 
+#define lh_math_add_one(a) (lh_math_add(a, 1))
+
 #define lh_math_sub(a, b) (a - b)
 
 #define lh_math_mul(a, b) (a * b)

@@ -374,6 +374,17 @@ static void handle_csi(char final, char *params, size_t params_length)
         if (strcmp(params, "?25") == 0) {
             hide_cursor(final == 'l');
         }
+    } else if (final == 'q') {
+        CONSOLE_CURSOR_INFO info;
+
+        if (GetConsoleCursorInfo(console_out, &info)) {
+            if (params_length == 0 || params[0] == '0') {
+                info.dwSize = original_cursor_info.dwSize;
+            } else if (params[0] == '1' || params[0] == '2') {
+                info.dwSize = 100;
+            }
+            SetConsoleCursorInfo(console_out, &info);
+        }
     }
 }
 

@@ -5245,7 +5245,7 @@ static void refresh_screen(void)
             } else {
                 prefix = strlen(" Theme: ");
             }
-            buffer_printf(&output, "\x1b[%d;%zuH\x1b[?25h",
+            buffer_printf(&output, "\x1b[%d;%zuH\x1b[2 q\x1b[?25h",
                           editor.screen_rows,
                           prefix + editor.prompt_length + 1);
         }
@@ -5275,7 +5275,7 @@ static void refresh_screen(void)
             show_cursor = false;
         }
         if (show_cursor) {
-            buffer_printf(&output, "\x1b[%zu;%zuH\x1b[?25h",
+            buffer_printf(&output, "\x1b[%zu;%zuH\x1b[2 q\x1b[?25h",
                           cursor_screen_row,
                           editor.cursor_x - editor.col_offset + (size_t) gutter + 1);
         }

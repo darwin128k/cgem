@@ -7,6 +7,11 @@ package lh:
             param b
             return a + b
 
+        fn add_one:
+            @require(value)
+            param a
+            return lh.math.add(a, 1)
+
         fn sub:
             @require(value)
             param a

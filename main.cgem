@@ -112,9 +112,9 @@ package lh:
             @require(value)
             param v
             @require(value)
-            param hi
-            @require(value)
             param lo
+            @require(value)
+            param hi
             return lh.math.min(lh.math.max(v, lo), hi)
 
     module initializer:

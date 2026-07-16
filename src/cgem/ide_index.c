@@ -672,16 +672,22 @@ static void fn_collector_append_param(FnHintCollector *collector,
 {
     size_t length;
 
-    if (!collector || !param_name || !type_name || !collector->hint[0]) {
+    if (!collector || !param_name || !collector->hint[0]) {
         return;
     }
     length = strlen(collector->hint);
     if (length >= sizeof(collector->hint) - 1) {
         return;
     }
-    snprintf(collector->hint + length, sizeof(collector->hint) - length,
-             "%s param %s as %s",
-             collector->has_params ? "," : " ", param_name, type_name);
+    if (type_name) {
+        snprintf(collector->hint + length, sizeof(collector->hint) - length,
+                 "%s param %s as %s",
+                 collector->has_params ? "," : " ", param_name, type_name);
+    } else {
+        snprintf(collector->hint + length, sizeof(collector->hint) - length,
+                 "%s param %s",
+                 collector->has_params ? "," : " ", param_name);
+    }
     collector->has_params = true;
 }
 
@@ -754,8 +760,10 @@ static bool fn_collector_consume(FnHintCollector *collector, IdeIndex *index,
     }
     if (cg_parse_param(text, &param_name, &field_type, &is_meta,
                        &is_variadic)) {
-        if (!is_meta && field_type.name) {
-            fn_collector_append_param(collector, param_name, field_type.name);
+        (void) is_meta;
+        (void) is_variadic;
+        fn_collector_append_param(collector, param_name, field_type.name);
+        if (field_type.name) {
             index_add_field_type(index, &field_type);
         }
         free(param_name);

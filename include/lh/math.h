@@ -55,4 +55,6 @@
 
 #define lh_math_bit_mask(n) lh_math_bit_shl(1u, n)
 
+#define lh_math_bit_set(a, b) ((a) |= (b))
+
 #endif /* LH_MATH_H */

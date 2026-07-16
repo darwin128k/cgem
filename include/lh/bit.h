@@ -17,4 +17,6 @@
 
 #define lh_bit_mask(n) lh_math_bit_mask(n)
 
+#define lh_bit_set(a, b) lh_math_bit_set(a, b)
+
 #endif /* LH_BIT_H */

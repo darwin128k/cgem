@@ -196,6 +196,14 @@ package lh:
                 param n
                 return lh.math.bit.shl(1u, n)
 
+            @wrap
+            fn set:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a |= b
+
     module bit:
         fn and:
             @require(value)
@@ -242,6 +250,12 @@ package lh:
             param n
             return lh.math.bit.mask(n)
 
+        fn set:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.set(a, b)
 
     module initializer:
         fn module:

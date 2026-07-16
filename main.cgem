@@ -1,5 +1,6 @@
 package lh:
     module math:
+        @wrap
         fn add:
             @require(value)
             param a
@@ -121,6 +122,29 @@ package lh:
             @require(value)
             param v
             return lh.math.eq(a, 0)
+
+        fn is_positive:
+            @require(value)
+            param v
+            return lh.math.gt(v, 0)
+
+        fn is_negative:
+            @require(value)
+            param v
+            return lh.math.lt(v, 0)
+
+        scope bit:
+            fn mask:
+                @require(value)
+                param n
+                return 1u << n
+
+            fn and:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a & b
 
     module initializer:
         fn module:

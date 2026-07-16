@@ -652,6 +652,53 @@ int cg_emit_function(FunctionOutput *output, char *error, size_t error_size)
         output->return_is_initializer, error, error_size);
 }
 
+static char *wrap_param_refs(const char *expr, char *const *params,
+                             size_t param_count)
+{
+    size_t length = strlen(expr);
+    char *out = malloc(length * 3 + 1);
+    size_t out_length = 0;
+    size_t i = 0;
+
+    if (!out) {
+        return NULL;
+    }
+    while (i < length) {
+        unsigned char ch = (unsigned char) expr[i];
+
+        if (cg_name_start(ch)) {
+            size_t start = i;
+            size_t j = i + 1;
+            bool matched = false;
+
+            while (j < length && cg_name_char((unsigned char) expr[j])) {
+                j++;
+            }
+            for (size_t p = 0; p < param_count && !matched; p++) {
+                if (strlen(params[p]) == j - start &&
+                    memcmp(params[p], expr + start, j - start) == 0) {
+                    matched = true;
+                }
+            }
+            if (matched) {
+                out[out_length++] = '(';
+                memcpy(out + out_length, expr + start, j - start);
+                out_length += j - start;
+                out[out_length++] = ')';
+            } else {
+                memcpy(out + out_length, expr + start, j - start);
+                out_length += j - start;
+            }
+            i = j;
+            continue;
+        }
+        out[out_length++] = (char) ch;
+        i++;
+    }
+    out[out_length] = '\0';
+    return out;
+}
+
 int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
                       char *error, size_t error_size)
 {
@@ -744,39 +791,86 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
                 goto done;
             }
         } else if (output->return_is_call) {
-            if (cg_module_body_printf(output->module, ") %s(",
-                                      output->return_expr) != 0) {
+            char *wrapped_callee =
+                output->return_wrap
+                    ? wrap_param_refs(output->return_expr, output->params,
+                                     output->param_count)
+                    : NULL;
+
+            if (output->return_wrap && !wrapped_callee) {
                 cg_set_error(error, error_size, "out of memory");
                 result = -1;
                 goto done;
             }
+            if (cg_module_body_printf(
+                    output->module, output->return_wrap ? ") (%s(" : ") %s(",
+                    wrapped_callee ? wrapped_callee : output->return_expr) !=
+                0) {
+                free(wrapped_callee);
+                cg_set_error(error, error_size, "out of memory");
+                result = -1;
+                goto done;
+            }
+            free(wrapped_callee);
             for (size_t i = 0; i < output->arg_count; i++) {
+                char *wrapped_arg =
+                    output->return_wrap
+                        ? wrap_param_refs(output->args[i].value,
+                                         output->params, output->param_count)
+                        : NULL;
+                const char *arg_text =
+                    wrapped_arg ? wrapped_arg : output->args[i].value;
+
+                if (output->return_wrap && !wrapped_arg) {
+                    cg_set_error(error, error_size, "out of memory");
+                    result = -1;
+                    goto done;
+                }
                 if (output->args[i].is_ref) {
                     if (cg_module_body_printf(output->module, "%s&(%s)",
-                                              i ? ", " : "",
-                                              output->args[i].value) != 0) {
+                                              i ? ", " : "", arg_text) != 0) {
+                        free(wrapped_arg);
                         cg_set_error(error, error_size, "out of memory");
                         result = -1;
                         goto done;
                     }
                 } else if (cg_module_body_printf(output->module, "%s%s",
                                                  i ? ", " : "",
-                                                 output->args[i].value) != 0) {
+                                                 arg_text) != 0) {
+                    free(wrapped_arg);
                     cg_set_error(error, error_size, "out of memory");
                     result = -1;
                     goto done;
                 }
+                free(wrapped_arg);
             }
-            if (cg_module_body_printf(output->module, ")\n") != 0) {
+            if (cg_module_body_printf(output->module,
+                                      output->return_wrap ? "))\n" : ")\n") != 0) {
                 cg_set_error(error, error_size, "out of memory");
                 result = -1;
                 goto done;
             }
-        } else if (cg_module_body_printf(output->module, ") %s\n",
-                                         output->return_expr) != 0) {
-            cg_set_error(error, error_size, "out of memory");
-            result = -1;
-            goto done;
+        } else {
+            char *wrapped_expr =
+                output->return_wrap
+                    ? wrap_param_refs(output->return_expr, output->params,
+                                     output->param_count)
+                    : NULL;
+
+            if (output->return_wrap && !wrapped_expr) {
+                cg_set_error(error, error_size, "out of memory");
+                result = -1;
+                goto done;
+            }
+            if (cg_module_body_printf(
+                    output->module, output->return_wrap ? ") (%s)\n" : ") %s\n",
+                    wrapped_expr ? wrapped_expr : output->return_expr) != 0) {
+                free(wrapped_expr);
+                cg_set_error(error, error_size, "out of memory");
+                result = -1;
+                goto done;
+            }
+            free(wrapped_expr);
         }
         output->module->header_has_declaration = true;
         goto done;

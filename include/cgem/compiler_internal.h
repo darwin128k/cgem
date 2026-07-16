@@ -237,6 +237,7 @@ typedef struct {
     bool param_pointer_pending;
     bool local_pointer_pending;
     bool return_is_initializer;
+    bool return_wrap;
     bool return_is_composed_macro;
     bool return_initializer_expand;
     size_t initializer_value_count;

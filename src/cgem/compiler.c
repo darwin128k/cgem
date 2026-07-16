@@ -2297,15 +2297,15 @@ static char *transform_function_expression(
             free(c_right);
             return NULL;
         }
-        out = malloc(strlen(c_left) * 2 + strlen(c_right) + 27);
+        out = malloc(strlen(c_left) * 2 + strlen(c_right) + 15);
         if (!out) {
             free(c_left);
             free(c_right);
             cg_set_error(error, error_size, "out of memory");
             return NULL;
         }
-        snprintf(out, strlen(c_left) * 2 + strlen(c_right) + 27,
-                 "((%s) != NULL ? (%s) : (%s))", c_left, c_left, c_right);
+        snprintf(out, strlen(c_left) * 2 + strlen(c_right) + 15,
+                 "%s != NULL ? %s : %s", c_left, c_left, c_right);
         free(c_left);
         free(c_right);
         return out;
@@ -2338,15 +2338,15 @@ static char *transform_function_expression(
             free(c_right);
             return NULL;
         }
-        out = malloc(strlen(c_left) * 2 + strlen(c_right) + 15);
+        out = malloc(strlen(c_left) * 2 + strlen(c_right) + 7);
         if (!out) {
             free(c_left);
             free(c_right);
             cg_set_error(error, error_size, "out of memory");
             return NULL;
         }
-        snprintf(out, strlen(c_left) * 2 + strlen(c_right) + 15,
-                 "((%s) ? (%s) : (%s))", c_left, c_left, c_right);
+        snprintf(out, strlen(c_left) * 2 + strlen(c_right) + 7,
+                 "%s ? %s : %s", c_left, c_left, c_right);
         free(c_left);
         free(c_right);
         return out;
@@ -2389,7 +2389,7 @@ static char *transform_function_expression(
             free(c_else);
             return NULL;
         }
-        out = malloc(strlen(c_cond) + strlen(c_then) + strlen(c_else) + 15);
+        out = malloc(strlen(c_cond) + strlen(c_then) + strlen(c_else) + 7);
         if (!out) {
             free(c_cond);
             free(c_then);
@@ -2397,8 +2397,8 @@ static char *transform_function_expression(
             cg_set_error(error, error_size, "out of memory");
             return NULL;
         }
-        snprintf(out, strlen(c_cond) + strlen(c_then) + strlen(c_else) + 15,
-                 "((%s) ? (%s) : (%s))", c_cond, c_then, c_else);
+        snprintf(out, strlen(c_cond) + strlen(c_then) + strlen(c_else) + 7,
+                 "%s ? %s : %s", c_cond, c_then, c_else);
         free(c_cond);
         free(c_then);
         free(c_else);
@@ -3681,6 +3681,7 @@ int cgem_compile(FILE *input, const char *include_path,
     bool attribute_expand = false;
     bool attribute_pointer = false;
     bool attribute_initializer = false;
+    bool attribute_wrap = false;
     DocAttributes doc_attributes = {0};
     IncludeAttributes include_attributes = {0};
     BlockAttributeKind block_attribute = BLOCK_ATTR_NONE;
@@ -4027,6 +4028,16 @@ int cgem_compile(FILE *input, const char *include_path,
                         goto done;
                     }
                     function_output.return_initializer_expand = true;
+                    continue;
+                }
+                if (strcmp(line + indent, "@wrap") == 0) {
+                    if (function_output.return_wrap) {
+                        cg_set_error(error, error_size,
+                                  "line %zu: @wrap specified more than once",
+                                  line_number);
+                        goto done;
+                    }
+                    function_output.return_wrap = true;
                     continue;
                 }
             }
@@ -5180,6 +5191,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                    &attribute_internal, &attribute_define,
                                    &attribute_mutable, &attribute_expand,
                                    &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                     continue;
                 }
                 free(fn_name);
@@ -5551,6 +5563,16 @@ int cgem_compile(FILE *input, const char *include_path,
                     goto done;
                 }
                 attribute_initializer = true;
+            } else if (attribute_name_length == strlen("wrap") &&
+                       memcmp(attribute_name, "wrap",
+                              attribute_name_length) == 0) {
+                if (attribute_wrap) {
+                    cg_set_error(error, error_size,
+                              "line %zu: @wrap specified more than once",
+                              line_number);
+                    goto done;
+                }
+                attribute_wrap = true;
             } else {
                 cg_set_error(error, error_size,
                           "line %zu: unknown attribute @%.*s",
@@ -5776,6 +5798,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                            &attribute_internal, &attribute_define,
                                            &attribute_mutable, &attribute_expand,
                                            &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                 continue;
             }
 
@@ -6003,6 +6026,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                            &attribute_internal, &attribute_define,
                                            &attribute_mutable, &attribute_expand,
                                            &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                 cg_clear_doc_attributes(&doc_attributes);
                 continue;
             }
@@ -6169,6 +6193,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                        &attribute_internal, &attribute_define,
                                        &attribute_mutable, &attribute_expand,
                                        &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                         cg_clear_doc_attributes(&doc_attributes);
                         continue;
                     }
@@ -6296,6 +6321,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                    &attribute_internal, &attribute_define,
                                    &attribute_mutable, &attribute_expand,
                                    &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                     cg_clear_doc_attributes(&doc_attributes);
                     continue;
                 }
@@ -6462,6 +6488,7 @@ int cgem_compile(FILE *input, const char *include_path,
                         .params = NULL,
                         .param_variadic = NULL,
                         .param_count = 0,
+                        .return_wrap = attribute_wrap,
                     };
                     fn_symbol = NULL;
                     fn_c_return_type = NULL;
@@ -6474,6 +6501,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                    &attribute_internal, &attribute_define,
                                    &attribute_mutable, &attribute_expand,
                                    &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
                     continue;
                 }
             }
@@ -6843,6 +6871,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                    &attribute_internal, &attribute_define,
                                    &attribute_mutable, &attribute_expand,
                                    &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
             cg_clear_doc_attributes(&doc_attributes);
             continue;
             }
@@ -7016,6 +7045,7 @@ int cgem_compile(FILE *input, const char *include_path,
                                &attribute_internal, &attribute_define,
                                &attribute_mutable, &attribute_expand,
                                &attribute_pointer, &attribute_initializer);
+                    attribute_wrap = false;
     }
     if (ferror(input)) {
         cg_set_error(error, error_size, "failed to read input");

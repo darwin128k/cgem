@@ -14,6 +14,13 @@ Release notes on GitHub are taken from the section that matches the tag
 - `Shift+Enter` inserts a blank, indented line above the current line and
   keeps the cursor on it (Windows console only; POSIX terminals can't tell
   Shift+Enter apart from plain Enter).
+- Parameterized (macro) functions can `return` a plain expression or a call
+  (including to another parameterized function), not just
+  `c.initializer(...)`; emitted as written, with no added parentheses.
+- `@wrap` attribute on a parameterized `fn`: wraps the whole return
+  expression in parentheses in the generated macro, guarding against
+  operator-precedence surprises when the macro is used inline. Off by
+  default — the DSL author controls parenthesization explicitly.
 
 ### Changed
 

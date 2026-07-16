@@ -1906,7 +1906,7 @@ static const char *keyword_ghost(const Row *row, size_t row_index,
     static const char *attributes[] = {
         "noscope", "include", "public", "private", "internal", "extern",
         "opaque", "define", "doc", "mutable", "pointer", "used", "require",
-        "initializer"
+        "initializer", "wrap"
     };
     static const char *members[] = {
         "c.void", "c.bool", "c.char", "c.schar", "c.uchar", "c.short",

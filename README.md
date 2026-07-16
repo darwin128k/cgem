@@ -521,6 +521,37 @@ metaparameter; if a function contains at least one of them, the whole function
 is emitted as a C function-like macro. No separate template attribute is
 required.
 
+A parameterized (macro) function's `return` may be a `c.initializer(...)`
+composition, another call (including to another parameterized function), or a
+plain expression:
+
+```text
+fn add:
+    @require(value)
+    param a
+    @require(value)
+    param b
+    return a + b
+```
+
+This generates `#define lh_math_add(a, b) a + b` — the expression is emitted
+exactly as written, with no added parentheses. Add `@wrap` before the `fn` to
+wrap the whole return expression in parentheses instead, which protects
+against operator-precedence surprises when the macro is used inline
+(`lh_math_add(1, 2) * 3`):
+
+```text
+@wrap
+fn add:
+    @require(value)
+    param a
+    @require(value)
+    param b
+    return a + b
+```
+
+This generates `#define lh_math_add(a, b) (a + b)`.
+
 Use `@pointer` before a typed declaration to make the C type a pointer to the
 referenced DSL type. It preserves the referenced C type symbol by default:
 

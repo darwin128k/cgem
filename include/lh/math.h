@@ -35,4 +35,6 @@
 
 #define lh_math_clamp(v, lo, hi) (lh_math_min(lh_math_max(v, lo), hi))
 
+#define lh_math_is_zero(v) (lh_math_eq(a, 0))
+
 #endif /* LH_MATH_H */

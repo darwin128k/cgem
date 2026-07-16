@@ -744,7 +744,7 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
                 goto done;
             }
         } else if (output->return_is_call) {
-            if (cg_module_body_printf(output->module, ") (%s(",
+            if (cg_module_body_printf(output->module, ") %s(",
                                       output->return_expr) != 0) {
                 cg_set_error(error, error_size, "out of memory");
                 result = -1;
@@ -767,12 +767,12 @@ int cg_close_function(FunctionOutput *output, StructOutput *struct_owner,
                     goto done;
                 }
             }
-            if (cg_module_body_printf(output->module, "))\n") != 0) {
+            if (cg_module_body_printf(output->module, ")\n") != 0) {
                 cg_set_error(error, error_size, "out of memory");
                 result = -1;
                 goto done;
             }
-        } else if (cg_module_body_printf(output->module, ") (%s)\n",
+        } else if (cg_module_body_printf(output->module, ") %s\n",
                                          output->return_expr) != 0) {
             cg_set_error(error, error_size, "out of memory");
             result = -1;

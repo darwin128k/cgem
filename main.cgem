@@ -117,6 +117,11 @@ package lh:
             param hi
             return lh.math.min(lh.math.max(v, lo), hi)
 
+        fn is_zero:
+            @require(value)
+            param v
+            return lh.math.eq(a, 0)
+
     module initializer:
         fn module:
             param values as ...

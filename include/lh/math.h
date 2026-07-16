@@ -41,8 +41,18 @@
 
 #define lh_math_is_negative(v) lh_math_lt(v, 0)
 
-#define lh_math_bit_mask(n) (1u << (n))
-
 #define lh_math_bit_and(a, b) ((a) & (b))
+
+#define lh_math_bit_or(a, b) ((a) | (b))
+
+#define lh_math_bit_xor(a, b) ((a) ^ (b))
+
+#define lh_math_bit_not(v) (~(v))
+
+#define lh_math_bit_shl(a, b) ((a) << (b))
+
+#define lh_math_bit_shr(a, b) ((a) >> (b))
+
+#define lh_math_bit_mask(n) lh_math_bit_shl(1u, n)
 
 #endif /* LH_MATH_H */

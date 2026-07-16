@@ -146,18 +146,102 @@ package lh:
 
         scope bit:
             @wrap
-            fn mask:
-                @require(value)
-                param n
-                return 1u << n
-
-            @wrap
             fn and:
                 @require(value)
                 param a
                 @require(value)
                 param b
                 return a & b
+
+            @wrap
+            fn or:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a | b
+
+            @wrap
+            fn xor:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a ^ b
+
+            @wrap
+            fn not:
+                @require(value)
+                param v
+                return ~v
+
+            @wrap
+            fn shl:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a << b
+
+            @wrap
+            fn shr:
+                @require(value)
+                param a
+                @require(value)
+                param b
+                return a >> b
+
+            fn mask:
+                @require(value)
+                param n
+                return lh.math.bit.shl(1u, n)
+
+    module bit:
+        fn and:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.and(a, b)
+
+        fn or:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.or(a, b)
+
+        fn xor:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.xor(a, b)
+
+        fn not:
+            @require(value)
+            param v
+            return lh.math.bit.not(v)
+
+        fn shl:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.shl(a, b)
+
+        fn shr:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.bit.shr(a, b)
+
+        fn mask:
+            @require(value)
+            param n
+            return lh.math.bit.mask(n)
+
 
     module initializer:
         fn module:

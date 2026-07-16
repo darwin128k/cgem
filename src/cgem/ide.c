@@ -1816,6 +1816,50 @@ static bool ghost_cursor_ok(const Row *row, size_t cursor_x)
     return completion_suffix_is_punctuation(row, cursor_x);
 }
 
+static bool completion_token_is_local(size_t row_index, const char *token,
+                                      size_t token_length)
+{
+    static const char *prefixes[] = {"param ", "let "};
+    size_t body_indent;
+
+    if (row_index == 0 || row_index >= editor.row_count) {
+        return false;
+    }
+    body_indent = leading_spaces(&editor.rows[row_index]);
+    for (size_t y = row_index; y-- > 0;) {
+        const Row *row = &editor.rows[y];
+        size_t indent = leading_spaces(row);
+
+        if (indent < body_indent) {
+            break;
+        }
+        if (indent != body_indent) {
+            continue;
+        }
+        for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++) {
+            size_t prefix_length = strlen(prefixes[i]);
+            size_t at;
+            size_t name_start;
+
+            if (row->length - indent <= prefix_length ||
+                memcmp(row->data + indent, prefixes[i], prefix_length) != 0) {
+                continue;
+            }
+            at = indent + prefix_length;
+            name_start = at;
+            while (at < row->length &&
+                   cg_name_char((unsigned char) row->data[at])) {
+                at++;
+            }
+            if (at - name_start == token_length &&
+                memcmp(row->data + name_start, token, token_length) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static const char *keyword_ghost(const Row *row, size_t row_index,
                                  bool *trailing_space)
 {
@@ -1929,6 +1973,10 @@ static const char *keyword_ghost(const Row *row, size_t row_index,
 
     if (!ide_index_completion_token_at(row->data, editor.cursor_x,
                                         &completion_token, &completion_length)) {
+        return NULL;
+    }
+    if (completion_token_is_local(row_index, completion_token,
+                                  completion_length)) {
         return NULL;
     }
     if (strstr(row->data, " as ") != NULL) {

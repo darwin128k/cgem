@@ -1529,6 +1529,56 @@ static bool row_is_block_attribute_string_line(const Row *row)
     return string_start != 0 && end == row->length;
 }
 
+static bool row_is_inline_attribute_string_line(const Row *row)
+{
+    static const char *names[] = {"doc", "include"};
+    size_t at = leading_spaces(row);
+
+    if (at >= row->length || row->data[at] != '@') {
+        return false;
+    }
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        size_t name_length = strlen(names[i]);
+        size_t pos = at + 1;
+        size_t string_start = 0;
+        size_t string_end = 0;
+        size_t end;
+
+        if (row->length - pos < name_length + 1 ||
+            memcmp(row->data + pos, names[i], name_length) != 0) {
+            continue;
+        }
+        pos += name_length;
+        if (pos < row->length && cg_name_char((unsigned char) row->data[pos])) {
+            continue;
+        }
+        if (pos >= row->length || row->data[pos] != '(') {
+            continue;
+        }
+        pos++;
+        while (pos < row->length && row->data[pos] == ' ') {
+            pos++;
+        }
+        end = scan_highlight_string(row, pos, &string_start, &string_end);
+        if (string_start == 0) {
+            continue;
+        }
+        while (end < row->length && row->data[end] == ' ') {
+            end++;
+        }
+        if (end < row->length && row->data[end] == ')') {
+            end++;
+            while (end < row->length && row->data[end] == ' ') {
+                end++;
+            }
+            if (end == row->length) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static bool row_is_muted_attribute_line(size_t row_index)
 {
     const Row *row;
@@ -1542,7 +1592,8 @@ static bool row_is_muted_attribute_line(size_t row_index)
     at = leading_spaces(row);
     if (row_ends_with_colon_attribute(row, at, "doc") ||
         row_ends_with_colon_attribute(row, at, "include") ||
-        row_ends_with_colon_attribute(row, at, "require")) {
+        row_ends_with_colon_attribute(row, at, "require") ||
+        row_is_inline_attribute_string_line(row)) {
         return true;
     }
     if (!row_is_block_attribute_string_line(row) &&

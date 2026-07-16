@@ -2225,6 +2225,18 @@ static void insert_newline(void)
     history_record_edit();
     if (editor.cursor_y == editor.row_count) {
         insert_row(editor.row_count, "", 0);
+    } else if (editor.cursor_x == 0) {
+        indent = leading_spaces(&editor.rows[editor.cursor_y]);
+        insert_row(editor.cursor_y, "", 0);
+        row = &editor.rows[editor.cursor_y];
+        for (size_t i = 0; i < indent; i++) {
+            row_insert_char(row, i, ' ');
+        }
+        editor.cursor_x = indent;
+        editor.dirty = true;
+        editor.quit_pending = false;
+        mark_semantic_dirty();
+        return;
     } else {
         row = &editor.rows[editor.cursor_y];
         indent = leading_spaces(row);

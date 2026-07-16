@@ -6,6 +6,7 @@ package lh:
             @require(value)
             param b
             return a + b
+
         scope add:
             fn one:
                 @require(value)
@@ -50,6 +51,48 @@ package lh:
             @require(value)
             param a
             return -a
+
+        fn eq:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a == b
+
+        fn ne:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a != b
+
+        fn lt:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a < b
+
+        fn le:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a <= b
+
+        fn gt:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a > b
+
+        fn ge:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return a >= b
 
     module initializer:
         fn module:

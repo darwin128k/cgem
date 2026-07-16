@@ -17,4 +17,16 @@
 
 #define lh_math_neg(a) (-a)
 
+#define lh_math_eq(a, b) (a == b)
+
+#define lh_math_ne(a, b) (a != b)
+
+#define lh_math_lt(a, b) (a < b)
+
+#define lh_math_le(a, b) (a <= b)
+
+#define lh_math_gt(a, b) (a > b)
+
+#define lh_math_ge(a, b) (a >= b)
+
 #endif /* LH_MATH_H */

@@ -2216,6 +2216,32 @@ static void unindent_selection(void)
     mark_semantic_dirty();
 }
 
+static void insert_line_above(void)
+{
+    Row *row;
+    size_t indent;
+
+    history_record_edit();
+    if (editor.cursor_y >= editor.row_count) {
+        insert_row(editor.row_count, "", 0);
+        editor.cursor_x = 0;
+        editor.dirty = true;
+        editor.quit_pending = false;
+        mark_semantic_dirty();
+        return;
+    }
+    indent = leading_spaces(&editor.rows[editor.cursor_y]);
+    insert_row(editor.cursor_y, "", 0);
+    row = &editor.rows[editor.cursor_y];
+    for (size_t i = 0; i < indent; i++) {
+        row_insert_char(row, i, ' ');
+    }
+    editor.cursor_x = indent;
+    editor.dirty = true;
+    editor.quit_pending = false;
+    mark_semantic_dirty();
+}
+
 static void insert_newline(void)
 {
     Row *row;
@@ -2226,17 +2252,10 @@ static void insert_newline(void)
     if (editor.cursor_y == editor.row_count) {
         insert_row(editor.row_count, "", 0);
     } else if (editor.cursor_x == 0) {
-        indent = leading_spaces(&editor.rows[editor.cursor_y]);
-        insert_row(editor.cursor_y, "", 0);
         row = &editor.rows[editor.cursor_y];
-        for (size_t i = 0; i < indent; i++) {
-            row_insert_char(row, i, ' ');
-        }
-        editor.cursor_x = indent;
-        editor.dirty = true;
-        editor.quit_pending = false;
-        mark_semantic_dirty();
-        return;
+        insert_row(editor.cursor_y + 1, row->data, row->length);
+        row->length = 0;
+        row->data[0] = '\0';
     } else {
         row = &editor.rows[editor.cursor_y];
         indent = leading_spaces(row);
@@ -2283,6 +2302,22 @@ static void insert_newline_plain(void)
     }
     editor.cursor_y++;
     editor.cursor_x = 0;
+    editor.dirty = true;
+    editor.quit_pending = false;
+    mark_semantic_dirty();
+}
+
+static void duplicate_line(void)
+{
+    Row *row;
+
+    if (editor.cursor_y >= editor.row_count) {
+        return;
+    }
+    history_record_edit();
+    row = &editor.rows[editor.cursor_y];
+    insert_row(editor.cursor_y + 1, row->data, row->length);
+    editor.cursor_y++;
     editor.dirty = true;
     editor.quit_pending = false;
     mark_semantic_dirty();
@@ -2890,6 +2925,9 @@ static bool handle_menu_action(IdeMenuAction action)
         return true;
     case IDE_MENU_ACTION_FORMAT:
         format_document();
+        return true;
+    case IDE_MENU_ACTION_DUPLICATE_LINE:
+        duplicate_line();
         return true;
     case IDE_MENU_ACTION_THEME:
         begin_theme_prompt();
@@ -5774,6 +5812,9 @@ static bool handle_key_binding(IdeKeyAction action)
     case IDE_KEY_FORMAT:
         format_document();
         return true;
+    case IDE_KEY_DUPLICATE_LINE:
+        duplicate_line();
+        return true;
     case IDE_KEY_QUIT:
         if (editor.dirty && !editor.quit_pending) {
             editor.quit_pending = true;
@@ -5878,6 +5919,9 @@ static bool process_key(void)
     switch (key) {
     case '\r':
         insert_newline();
+        break;
+    case KEY_SHIFT_ENTER:
+        insert_line_above();
         break;
     case '\t':
         editor_indent_action();

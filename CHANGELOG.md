@@ -7,7 +7,22 @@ Release notes on GitHub are taken from the section that matches the tag
 
 ## Unreleased
 
+### Added
+
+- IDE **Edit → Duplicate Line** and `Ctrl+D`: duplicates the current line
+  below itself and moves the cursor onto the copy.
+- `Shift+Enter` inserts a blank, indented line above the current line and
+  keeps the cursor on it (Windows console only; POSIX terminals can't tell
+  Shift+Enter apart from plain Enter).
+
 ### Changed
+
+- `Ctrl+D` now duplicates the current line instead of go to definition;
+  go to definition moved to `Ctrl+J` ("jump to definition").
+- Fixed: pressing `Enter` with the cursor at the start of a line duplicated
+  that line's indentation instead of leaving a blank line above it. Plain
+  `Enter` now always behaves like a normal editor: the current line moves
+  down unchanged and the cursor follows it.
 
 - Struct field-macro composition now requires a `use` prefix (for example
   `use lh.pair.fields(type, type)`); the bare-call form from 0.2.0 is no

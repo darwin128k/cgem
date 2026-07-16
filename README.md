@@ -184,9 +184,15 @@ opens or creates its `main.cgem`. Without `--input`, the IDE opens
 - `Ctrl+Z`, `Ctrl+Y`: undo and redo edits
 - `Ctrl+F`, `F7`: find text; `Ctrl+N`: find the next match
 - `Ctrl+G`: go to a line number
-- `Ctrl+D`: go to definition
+- `Ctrl+J`: go to definition
 - `Ctrl+P`: rename symbol
 - Format is available from **Edit → Format** or `Ctrl+K`
+- `Ctrl+D`: duplicate the current line
+- `Enter` at the start of a line: the line stays where it was and an empty
+  line is inserted above it; the cursor follows the line down. `Shift+Enter`
+  does the opposite — inserts a blank, indented line above and keeps the
+  cursor on it (Windows console only; POSIX terminals cannot distinguish
+  Shift+Enter from plain Enter)
 - **Edit → Increase** (`Tab`) and **Edit → Decrease** (`Shift+Tab`) move lines
   between DSL section levels (4-space steps); the **Edit** menu groups commands
   under section headers (History, Clipboard, Section, Search).

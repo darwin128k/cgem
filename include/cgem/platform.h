@@ -20,6 +20,7 @@ enum {
     KEY_PAGE_UP,
     KEY_PAGE_DOWN,
     KEY_SHIFT_TAB,
+    KEY_SHIFT_ENTER,
     KEY_F1,
     KEY_F2,
     KEY_F3,

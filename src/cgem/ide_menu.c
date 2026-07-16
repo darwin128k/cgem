@@ -46,6 +46,7 @@ static const MenuEntry edit_items[] = {
     { "Increase", IDE_MENU_ACTION_INDENT, false, true },
     { "Decrease", IDE_MENU_ACTION_UNINDENT, false, true },
     { "Format", IDE_MENU_ACTION_FORMAT, false, true },
+    { "Duplicate Line", IDE_MENU_ACTION_DUPLICATE_LINE, false, true },
     { "Search", IDE_MENU_ACTION_NONE, true, false },
     { "Find", IDE_MENU_ACTION_FIND, false, true },
     { "Find Next", IDE_MENU_ACTION_FIND_NEXT, false, true },
@@ -167,6 +168,8 @@ static const char *menu_action_shortcut(IdeMenuAction action)
         return ide_keymap_key_label(IDE_KEY_RENAME);
     case IDE_MENU_ACTION_FORMAT:
         return ide_keymap_key_label(IDE_KEY_FORMAT);
+    case IDE_MENU_ACTION_DUPLICATE_LINE:
+        return ide_keymap_key_label(IDE_KEY_DUPLICATE_LINE);
     case IDE_MENU_ACTION_INDENT:
         return "Tab";
     case IDE_MENU_ACTION_UNINDENT:

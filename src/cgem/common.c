@@ -99,12 +99,12 @@ int cgem_clean_output_package(const char *include_path,
 
 static bool resolve_directory(const char *path, char *resolved, size_t size)
 {
-    char combined[PATH_MAX];
-
     if (!path || !path[0]) {
         return false;
     }
 #if !defined(_WIN32)
+    char combined[PATH_MAX];
+
     if (path[0] == '/') {
         if (platform_path_is_directory(path) && realpath(path, resolved)) {
             return true;

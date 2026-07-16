@@ -722,6 +722,11 @@ PlatformEvent platform_read_event(void)
             return key_event(KEY_SHIFT_TAB);
         }
 
+        if (virtual_key == VK_RETURN &&
+            (control & SHIFT_PRESSED) != 0) {
+            return key_event(KEY_SHIFT_ENTER);
+        }
+
         if (ch != 0) {
             return key_event((unsigned char) ch);
         }

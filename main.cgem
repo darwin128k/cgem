@@ -94,6 +94,29 @@ package lh:
             param b
             return a >= b
 
+        fn min:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.lt(a, b) ? a : b
+
+        fn max:
+            @require(value)
+            param a
+            @require(value)
+            param b
+            return lh.math.gt(a, b) ? a : b
+
+        fn clamp:
+            @require(value)
+            param v
+            @require(value)
+            param hi
+            @require(value)
+            param lo
+            return lh.math.min(lh.math.max(v, lo), hi)
+
     module initializer:
         fn module:
             param values as ...

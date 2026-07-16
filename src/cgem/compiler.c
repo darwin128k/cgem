@@ -2389,7 +2389,7 @@ static char *transform_function_expression(
             free(c_else);
             return NULL;
         }
-        out = malloc(strlen(c_cond) + strlen(c_then) + strlen(c_else) + 12);
+        out = malloc(strlen(c_cond) + strlen(c_then) + strlen(c_else) + 15);
         if (!out) {
             free(c_cond);
             free(c_then);
@@ -2397,7 +2397,7 @@ static char *transform_function_expression(
             cg_set_error(error, error_size, "out of memory");
             return NULL;
         }
-        snprintf(out, strlen(c_cond) + strlen(c_then) + strlen(c_else) + 12,
+        snprintf(out, strlen(c_cond) + strlen(c_then) + strlen(c_else) + 15,
                  "((%s) ? (%s) : (%s))", c_cond, c_then, c_else);
         free(c_cond);
         free(c_then);

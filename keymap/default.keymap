@@ -10,9 +10,9 @@
 # Theme and Save As have no default shortcut.
 #
 # Ctrl+letter layout (one action per letter):
-#   A select-all   B generate*   C copy        D goto definition
+#   A select-all   B generate*   C copy        D duplicate line
 #   E free         F find        G goto line   H free
-#   I (tab)        J free        K format      L (shell clear screen)
+#   I (tab)        J goto def.   K format      L (shell clear screen)
 #   M (enter)      N find next   O open        P rename
 #   Q quit         R free        S save        T free
 #   U paste fmt    V paste       W free        X cut
@@ -39,11 +39,17 @@ action.redo Ctrl+Y
 action.find Ctrl+F
 action.find_next Ctrl+N
 action.goto_line Ctrl+G
-action.goto_definition Ctrl+D
+action.goto_definition Ctrl+J
 action.rename Ctrl+P
 action.format Ctrl+K
+action.duplicate_line Ctrl+D
 action.help F1
 
-# Fixed editor keys (not remappable — terminal Tab / Shift+Tab):
-#   Tab         increase nesting (4 spaces) or accept keyword hint
-#   Shift+Tab   decrease nesting (4 spaces)
+# Fixed editor keys (not remappable — terminal Tab / Shift+Tab / Shift+Enter):
+#   Tab           increase nesting (4 spaces) or accept keyword hint
+#   Shift+Tab     decrease nesting (4 spaces)
+#   Enter         new line (cursor at line start: blank line stays behind,
+#                 content moves down unchanged, cursor follows it)
+#   Shift+Enter   insert a blank line above, indented to match, cursor stays
+#                 on it (Windows console only — Shift is not distinguishable
+#                 from plain Enter on POSIX terminals)

@@ -929,7 +929,7 @@ package interval:
         module fields:
             struct module:
                 param type
-                lh.pair.fields(type, type)
+                use lh.pair.fields(type, type)
 ```
 
 This generates:
@@ -942,6 +942,9 @@ This generates:
 The composed layout is registered for `@require(type as <struct>)` even when
 the C output keeps the nested macro call. Add `@expand` before the invocation
 to inline the nested fields into the outer `#define` instead.
+
+The `use` prefix is required; a bare `lh.pair.fields(type, type)` line is not
+a valid struct member.
 
 Template structure fields can also use `@pointer`:
 

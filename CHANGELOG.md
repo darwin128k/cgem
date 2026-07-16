@@ -5,6 +5,18 @@ All notable changes to CGEM are documented in this file.
 Release notes on GitHub are taken from the section that matches the tag
 (`v0.2.0` → `## 0.2.0`). See [Releases](README.md#releases) in the README.
 
+## Unreleased
+
+### Changed
+
+- Struct field-macro composition now requires a `use` prefix (for example
+  `use lh.pair.fields(type, type)`); the bare-call form from 0.2.0 is no
+  longer valid (no backward compatibility). Restores the old `use` keyword
+  for this one case — it had been removed as a side effect of the 0.2.0
+  call-syntax rewrite rather than as a deliberate design choice.
+- `main.cgem` updated to use `use` on all struct field-macro composition
+  lines (`lh.interval.bounds.fields`, `lh.version`, `lh.error`).
+
 ## 0.2.0 - 2026-06-25
 
 ### Added

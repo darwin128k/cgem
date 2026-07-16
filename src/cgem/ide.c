@@ -3026,7 +3026,7 @@ static size_t declaration_keyword_length(const Row *row, size_t at)
 {
     static const char *keywords[] = {
         "scope", "module", "package", "case", "let", "struct", "param",
-        "fn", "return", "if", "elif", "else"
+        "fn", "return", "use", "if", "elif", "else"
     };
 
     for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {

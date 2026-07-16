@@ -151,7 +151,7 @@ package lh:
                 struct module:
                     @require(type)
                     param type
-                    lh.pair.fields(type, type)
+                    use lh.pair.fields(type, type)
 
             module initializer:
                 fn module:
@@ -196,7 +196,7 @@ package lh:
 
     module version:
         struct module:
-            lh.version.fields(lh.version.major, lh.version.minor, lh.version.patch)
+            use lh.version.fields(lh.version.major, lh.version.minor, lh.version.patch)
 
             fn get_major:
                 return self.major
@@ -271,4 +271,4 @@ package lh:
 
     module error:
         struct module:
-            lh.error.fields(lh.error.code, lh.error.desc)
+            use lh.error.fields(lh.error.code, lh.error.desc)

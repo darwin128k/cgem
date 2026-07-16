@@ -1058,8 +1058,16 @@ static void index_rebuild_rows(IdeIndex *index, const IdeIndexRow *rows,
                 char *macro_callee = NULL;
                 char **macro_args = NULL;
                 size_t macro_arg_count = 0;
+                const char *macro_text = text;
 
-                if (cg_parse_paren_call(text, &macro_callee, &macro_args,
+                if (in_struct && strncmp(macro_text, "use ", 4) == 0) {
+                    macro_text += 4;
+                    while (*macro_text == ' ') {
+                        macro_text++;
+                    }
+                }
+
+                if (cg_parse_paren_call(macro_text, &macro_callee, &macro_args,
                                         &macro_arg_count)) {
                     index_add(index, macro_callee);
                     if (in_struct && macro_callee && macro_arg_count > 0) {

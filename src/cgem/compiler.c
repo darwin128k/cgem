@@ -4966,13 +4966,19 @@ int cgem_compile(FILE *input, const char *include_path,
                 struct_output.field_pointer = true;
                 continue;
             }
-            if (indent == struct_output.indent + 4) {
+            if (indent == struct_output.indent + 4 &&
+                strncmp(line + indent, "use ", 4) == 0) {
                 char *macro_callee = NULL;
                 char **macro_args = NULL;
                 size_t macro_arg_count = 0;
                 bool macro_expand = struct_output.field_expand;
+                const char *macro_line = line + indent + 4;
 
-                if (cg_parse_paren_call(line + indent, &macro_callee, &macro_args,
+                while (*macro_line == ' ') {
+                    macro_line++;
+                }
+
+                if (cg_parse_paren_call(macro_line, &macro_callee, &macro_args,
                                         &macro_arg_count)) {
                     StructTemplate *macro_template;
                     char **resolved_args = NULL;
@@ -5107,6 +5113,10 @@ int cgem_compile(FILE *input, const char *include_path,
                     struct_output.field_pointer = false;
                     continue;
                 }
+                cg_set_error(error, error_size,
+                          "line %zu: expected a macro call after 'use'",
+                          line_number);
+                goto done;
             }
             if (indent == struct_output.indent + 4) {
                 char *fn_name = NULL;

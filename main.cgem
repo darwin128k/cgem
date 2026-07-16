@@ -1,4 +1,12 @@
 package lh:
+    module math:
+        fn add:
+            @require(type)
+            param a
+            @require(type)
+            param b
+            return a + b
+
     module initializer:
         fn module:
             param values as ...

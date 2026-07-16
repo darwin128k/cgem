@@ -6,11 +6,11 @@ package lh:
             @require(value)
             param b
             return a + b
-
-        fn add_one:
-            @require(value)
-            param a
-            return lh.math.add(a, 1)
+        scope add:
+            fn one:
+                @require(value)
+                param a
+                return lh.math.add(a, 1)
 
         fn sub:
             @require(value)
@@ -18,6 +18,12 @@ package lh:
             @require(value)
             param b
             return a - b
+
+        scope sub:
+            fn one:
+                @require(value)
+                param a
+                return lh.math.sub(a, 1)
 
         fn mul:
             @require(value)

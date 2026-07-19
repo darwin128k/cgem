@@ -276,6 +276,30 @@ int cg_add_builtin_c_types(Symbol **symbols, size_t *count, size_t *capacity)
     return 0;
 }
 
+int cg_add_builtin_c_operators(Symbol **symbols, size_t *count,
+                               size_t *capacity)
+{
+    static const struct {
+        const char *name;
+        const char *spelling;
+    } operators[] = {
+        {"c.sizeof", "sizeof"}
+    };
+
+    for (size_t i = 0; i < sizeof(operators) / sizeof(operators[0]); i++) {
+        char *dsl_name = strdup(operators[i].name);
+
+        if (!dsl_name ||
+            cg_add_symbol_ex(symbols, count, capacity, dsl_name,
+                             operators[i].spelling, "", operators[i].spelling,
+                             false, true, false, SYMBOL_KIND_FN, NULL) != 0) {
+            free(dsl_name);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 Symbol *cg_find_symbol(Symbol *symbols, size_t count, const char *name)
 {
     for (size_t i = count; i > 0; i--) {

@@ -257,6 +257,12 @@ package lh:
             param b
             return lh.math.bit.set(a, b)
 
+    module type:
+        scope size:
+            fn of:
+                param expr
+                return c.sizeof(expr)
+
     module initializer:
         fn module:
             param values as ...

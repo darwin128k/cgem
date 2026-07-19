@@ -3714,6 +3714,11 @@ int cgem_compile(FILE *input, const char *include_path,
         cg_set_error(error, error_size, "out of memory");
         goto done;
     }
+    if (cg_add_builtin_c_operators(&symbols, &symbol_count, &symbol_capacity) !=
+        0) {
+        cg_set_error(error, error_size, "out of memory");
+        goto done;
+    }
     if (cg_add_compiler_macros(&symbols, &symbol_count, &symbol_capacity,
                                compiler, error, error_size) != 0) {
         goto done;

@@ -344,6 +344,8 @@ Symbol *cg_find_symbol(Symbol *symbols, size_t count, const char *name);
 Symbol *cg_find_symbol_by_c_name(Symbol *symbols, size_t count,
                                  const char *name);
 int cg_add_builtin_c_types(Symbol **symbols, size_t *count, size_t *capacity);
+int cg_add_builtin_c_operators(Symbol **symbols, size_t *count,
+                               size_t *capacity);
 int cg_add_compiler_macros(Symbol **symbols, size_t *count, size_t *capacity,
                            const char *compiler, char *error,
                            size_t error_size);

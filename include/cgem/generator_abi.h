@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 
-#define CGEM_GENERATOR_ABI_VERSION 6u
+#define CGEM_GENERATOR_ABI_VERSION 7u
 #define CGEM_GENERATOR_ENTRY_SYMBOL "cgem_generator_get_vtable"
 
 typedef struct cgem_generator_registrar cgem_generator_registrar_t;
@@ -45,12 +45,25 @@ cgem_bool_t cgem_generator_registrar_add_target(
     cgem_generator_registrar_t *registrar, const cgem_char_t *name,
     cgem_generate_fn_t fn);
 
+/* Optional. Called after core has materialized the generator's raw type
+ * keys (see cgem_generator_import_types) as leaf nodes under `owner`: lets
+ * the generator add richer types built on top of those raw primitives --
+ * e.g. the C generator builds "uchar" as a real struct+field+fn wrapping
+ * the raw "char" leaf with a magic "add" method. Core calls this but has
+ * no idea what shape the result takes; that knowledge belongs entirely to
+ * the generator, same as everything else target/language-specific. May be
+ * NULL if a generator has nothing to add beyond its raw type keys. */
+typedef cgem_bool_t (*cgem_bootstrap_types_fn_t)(cgem_node_t *owner,
+                                                  cgem_char_t *error,
+                                                  size_t error_size);
+
 typedef struct {
     cgem_uint_t abi_version;
     const cgem_char_t *name;
     cgem_bool_t (*init)(cgem_generator_registrar_t *registrar,
                         const cgem_attributes_t *config, cgem_char_t *error,
                         size_t error_size);
+    cgem_bootstrap_types_fn_t bootstrap_types;
     void (*deinit)(void);
 } cgem_generator_vtable_t;
 

@@ -401,3 +401,18 @@ cgem_bool_t cgem_generator_import_types(const cgem_generator_t *generator,
     }
     return true;
 }
+
+cgem_bool_t cgem_generator_bootstrap_types(const cgem_generator_t *generator,
+                                           cgem_node_t *owner,
+                                           cgem_char_t *error,
+                                           size_t error_size)
+{
+    if (!generator || !owner) {
+        snprintf(error, error_size, "no generator or owner specified");
+        return false;
+    }
+    if (!generator->vtable->bootstrap_types) {
+        return true;
+    }
+    return generator->vtable->bootstrap_types(owner, error, error_size);
+}

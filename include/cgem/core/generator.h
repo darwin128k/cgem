@@ -53,4 +53,14 @@ cgem_bool_t cgem_generator_generate(cgem_generator_t *generator,
 cgem_bool_t cgem_generator_import_types(const cgem_generator_t *generator,
                                         cgem_node_t *owner);
 
+/* Calls the generator's optional bootstrap_types hook to add richer types
+ * on top of the raw ones already materialized under `owner`. A no-op
+ * (returns true) if the generator declared no such hook. Run
+ * cgem_generator_import_types on the same `owner` first -- bootstrapped
+ * types typically reference the raw ones by name. */
+cgem_bool_t cgem_generator_bootstrap_types(const cgem_generator_t *generator,
+                                           cgem_node_t *owner,
+                                           cgem_char_t *error,
+                                           size_t error_size);
+
 #endif

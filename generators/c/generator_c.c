@@ -5,7 +5,14 @@
 #include "cgem/core/allocator.h"
 #include "cgem/core/attribute.h"
 #include "cgem/core/attributes.h"
+#include "cgem/core/call.h"
+#include "cgem/core/field.h"
+#include "cgem/core/fn.h"
 #include "cgem/core/node.h"
+#include "cgem/core/param.h"
+#include "cgem/core/ref.h"
+#include "cgem/core/return.h"
+#include "cgem/core/struct.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -264,15 +271,118 @@ static cgem_bool_t init(cgem_generator_registrar_t *registrar,
     return true;
 }
 
+/* Wraps a raw primitive already materialized under `owner` (by name
+ * `raw_name`, e.g. "char") in a struct `wrapper_name` (e.g. "uchar") with
+ * a single "value" field and a magic "add" method:
+ *
+ *     struct <wrapper_name>:
+ *       field value as <raw_name>
+ *       fn add(other as <wrapper_name>) returns <wrapper_name>:
+ *         return self.value.add(other.value)
+ *
+ * Assumes `owner` is the package these names live directly under (so
+ * "c.<raw_name>" and "c.<wrapper_name>" both resolve) -- true for how
+ * cgem_generator_import_types and this hook are meant to be called
+ * together, but not verified here; core still checks nothing. */
+static cgem_bool_t wrap_raw_type(cgem_node_t *owner,
+                                 const cgem_char_t *raw_name,
+                                 const cgem_char_t *wrapper_name,
+                                 cgem_char_t *error, size_t error_size)
+{
+    cgem_char_t raw_path[128];
+    cgem_char_t wrapper_path[128];
+    cgem_struct_t *wrapper;
+    cgem_field_t *value_field;
+    cgem_fn_t *add_fn;
+    cgem_param_t *other_param;
+    cgem_call_t *call;
+    cgem_ref_t *arg_ref;
+    cgem_return_t *return_stmt;
+
+    snprintf(raw_path, sizeof(raw_path), "c.%s", raw_name);
+    snprintf(wrapper_path, sizeof(wrapper_path), "c.%s", wrapper_name);
+
+    wrapper = cgem_struct_new(wrapper_name, owner);
+    if (!wrapper || !cgem_node_add(owner, wrapper)) {
+        cgem_node_free(wrapper);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    value_field = cgem_field_new(
+        "value", cgem_attribute_value_new_symbol(raw_path), wrapper);
+    if (!value_field || !cgem_node_add(wrapper, value_field)) {
+        cgem_node_free(value_field);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    add_fn = cgem_fn_new(
+        "add", cgem_attribute_value_new_symbol(wrapper_path), wrapper);
+    if (!add_fn || !cgem_node_add(wrapper, add_fn)) {
+        cgem_node_free(add_fn);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    other_param = cgem_param_new(
+        "other", cgem_attribute_value_new_symbol(wrapper_path), add_fn);
+    if (!other_param || !cgem_node_add(add_fn, other_param)) {
+        cgem_node_free(other_param);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    /* "+" desugars to a call to the magic method "add"; when this
+     * generator's codegen (walk()) grows expression support, it is
+     * expected to recognize that self.value/other.value bottom out at a
+     * raw target primitive and emit a native "+" instead of a real call. */
+    call = cgem_call_new("self.value.add", add_fn);
+    if (!call) {
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+    arg_ref = cgem_ref_new("other.value", call);
+    if (!arg_ref || !cgem_node_add(call, arg_ref)) {
+        cgem_node_free(arg_ref);
+        cgem_node_free(call);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    return_stmt = cgem_return_new(call, add_fn);
+    if (!return_stmt || !cgem_node_add(add_fn, return_stmt)) {
+        cgem_node_free(return_stmt);
+        snprintf(error, error_size, "c generator: out of memory building %s",
+                 wrapper_name);
+        return false;
+    }
+
+    return true;
+}
+
+static cgem_bool_t bootstrap_types(cgem_node_t *owner, cgem_char_t *error,
+                                   size_t error_size)
+{
+    return wrap_raw_type(owner, "char", "uchar", error, error_size);
+}
+
 static void deinit(void)
 {
 }
 
 static const cgem_generator_vtable_t vtable = {
-    CGEM_GENERATOR_ABI_VERSION,
-    "c",
-    init,
-    deinit
+    .abi_version = CGEM_GENERATOR_ABI_VERSION,
+    .name = "c",
+    .init = init,
+    .bootstrap_types = bootstrap_types,
+    .deinit = deinit
 };
 
 const cgem_generator_vtable_t *cgem_generator_get_vtable(void)

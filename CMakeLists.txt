@@ -150,19 +150,21 @@ if(NOT CGEM_IDE)
     target_compile_definitions(cgem PRIVATE CGEM_NO_IDE)
 endif()
 
-# Example out-of-tree generator, loaded by cgem_core's dlopen-based loader
-# at runtime (not linked into the cgem executable). Proves the plugin ABI.
-add_library(cgem_generator_example MODULE generators/example/generator_example.c)
-target_include_directories(cgem_generator_example PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(cgem_generator_example PRIVATE cgem_core)
-set_target_properties(cgem_generator_example PROPERTIES PREFIX ""
-    WINDOWS_EXPORT_ALL_SYMBOLS ON)
-
 add_library(cgem_generator_c MODULE generators/c/generator_c.c)
 target_include_directories(cgem_generator_c PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(cgem_generator_c PRIVATE cgem_core)
 set_target_properties(cgem_generator_c PROPERTIES PREFIX ""
     WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+enable_testing()
+
+add_executable(cgem_core_tests tests/core_builtins_test.c)
+target_include_directories(cgem_core_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(cgem_core_tests PRIVATE cgem_core)
+target_compile_definitions(cgem_core_tests PRIVATE
+    CGEM_TEST_GENERATOR_C_PATH="$<TARGET_FILE:cgem_generator_c>")
+add_dependencies(cgem_core_tests cgem_generator_c)
+add_test(NAME core_builtins COMMAND cgem_core_tests)
 
 if(CGEM_IDE)
     add_custom_target(run

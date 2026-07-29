@@ -1,8 +1,8 @@
 #ifndef CGEM_GENERATOR_H
 #define CGEM_GENERATOR_H
 
+#include "cgem/core/generator_sink.h"
 #include "cgem/core/node.h"
-#include "cgem/core/writer.h"
 #include "cgem/generator_abi.h"
 
 #include <stdbool.h>
@@ -27,7 +27,7 @@ const char *cgem_generator_get_target_name(const cgem_generator_t *generator,
                                            size_t index);
 
 bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
-                             cgem_node_t *root, cgem_writer_t *writer,
+                             cgem_node_t *root, cgem_generator_sink_t *sink,
                              char *error, size_t error_size);
 
 #endif

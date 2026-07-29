@@ -52,6 +52,7 @@ set(CGEM_CORE_SOURCES
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
     src/cgem/core/generator.c
+    src/cgem/core/generator_sink.c
     ${CGEM_PLATFORM_SOURCE}
 )
 
@@ -142,6 +143,12 @@ add_library(cgem_generator_example MODULE generators/example/generator_example.c
 target_include_directories(cgem_generator_example PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(cgem_generator_example PRIVATE cgem_core)
 set_target_properties(cgem_generator_example PROPERTIES PREFIX ""
+    WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+add_library(cgem_generator_c MODULE generators/c/generator_c.c)
+target_include_directories(cgem_generator_c PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(cgem_generator_c PRIVATE cgem_core)
+set_target_properties(cgem_generator_c PROPERTIES PREFIX ""
     WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if(CGEM_IDE)

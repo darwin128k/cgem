@@ -1,19 +1,23 @@
 #ifndef CGEM_GENERATOR_ABI_H
 #define CGEM_GENERATOR_ABI_H
 
+#include "cgem/core/generator_sink.h"
 #include "cgem/core/node.h"
-#include "cgem/core/writer.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 
-#define CGEM_GENERATOR_ABI_VERSION 2u
+#define CGEM_GENERATOR_ABI_VERSION 3u
 #define CGEM_GENERATOR_ENTRY_SYMBOL "cgem_generator_get_vtable"
 
 typedef struct cgem_generator_registrar cgem_generator_registrar_t;
 
-typedef bool (*cgem_generate_fn_t)(cgem_node_t *root, cgem_writer_t *writer,
-                                   char *error, size_t error_size);
+/* sink lets a generator create as many output files as it needs (one per
+ * module/header/source, mirroring package nesting as directories) instead
+ * of writing everything to a single stream. */
+typedef bool (*cgem_generate_fn_t)(cgem_node_t *root,
+                                   cgem_generator_sink_t *sink, char *error,
+                                   size_t error_size);
 
 /* Host-provided registration calls, analogous to AMX Mod X's MF_AddNatives:
  * the generator calls these from init() to declare what it understands and

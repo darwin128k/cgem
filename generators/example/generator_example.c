@@ -27,26 +27,33 @@ static bool write_line(cgem_writer_t *writer, const char *text)
     return cgem_writer_write(writer, text, strlen(text));
 }
 
-static bool generate_default(cgem_node_t *root, cgem_writer_t *writer,
+static bool generate_default(cgem_node_t *root, cgem_generator_sink_t *sink,
                              char *error, size_t error_size)
 {
+    cgem_writer_t *writer;
     size_t count;
     size_t i;
+    bool ok = true;
 
-    if (!root || !writer) {
-        snprintf(error, error_size, "example generator: missing root or writer");
+    if (!root || !sink) {
+        snprintf(error, error_size, "example generator: missing root or sink");
         return false;
     }
     if (!header_line) {
         snprintf(error, error_size, "example generator: not initialized");
         return false;
     }
+    writer = cgem_generator_sink_open(sink, "example.txt", error, error_size);
+    if (!writer) {
+        return false;
+    }
     if (!write_line(writer, header_line)) {
         snprintf(error, error_size, "example generator: write failed");
+        cgem_writer_free(writer);
         return false;
     }
     count = cgem_node_get_count(root);
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < count && ok; i++) {
         cgem_node_t *child = cgem_node_get(root, i);
         const char *name = attribute_string(child, "name");
         const char *type = attribute_string(child, "type");
@@ -56,10 +63,11 @@ static bool generate_default(cgem_node_t *root, cgem_writer_t *writer,
                  name ? name : "(unnamed)");
         if (!write_line(writer, line)) {
             snprintf(error, error_size, "example generator: write failed");
-            return false;
+            ok = false;
         }
     }
-    return true;
+    cgem_writer_free(writer);
+    return ok;
 }
 
 static bool init(cgem_generator_registrar_t *registrar, char *error,

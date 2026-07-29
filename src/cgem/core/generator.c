@@ -235,7 +235,7 @@ const char *cgem_generator_get_target_name(const cgem_generator_t *generator,
 }
 
 bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
-                             cgem_node_t *root, cgem_writer_t *writer,
+                             cgem_node_t *root, cgem_generator_sink_t *sink,
                              char *error, size_t error_size)
 {
     size_t i;
@@ -249,7 +249,7 @@ bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
             cgem_array_at(&generator->registrar.targets, i);
 
         if (strcmp(candidate->name, target) == 0) {
-            return candidate->fn(root, writer, error, error_size);
+            return candidate->fn(root, sink, error, error_size);
         }
     }
     snprintf(error, error_size, "unknown generator target: %s", target);

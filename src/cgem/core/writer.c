@@ -1,6 +1,6 @@
 #include "cgem/core/writer.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 
 struct cgem_writer {
     const cgem_writer_vtable_t *vtable;
@@ -14,7 +14,7 @@ cgem_writer_t *cgem_writer_new(const cgem_writer_vtable_t *vtable, void *self)
     if (!vtable || !vtable->write) {
         return NULL;
     }
-    writer = malloc(sizeof(*writer));
+    writer = cgem_alloc(sizeof(*writer));
     if (!writer) {
         return NULL;
     }
@@ -31,7 +31,7 @@ void cgem_writer_free(cgem_writer_t *writer)
     if (writer->vtable->free) {
         writer->vtable->free(writer->self);
     }
-    free(writer);
+    cgem_free(writer);
 }
 
 bool cgem_writer_write(cgem_writer_t *writer, const char *buffer, size_t size)

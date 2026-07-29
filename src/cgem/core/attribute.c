@@ -1,6 +1,6 @@
 #include "cgem/core/attribute.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 #include <string.h>
 
 struct cgem_attribute_value {
@@ -26,7 +26,7 @@ struct cgem_attribute {
 static char *copy_string(const char *text)
 {
     size_t length = strlen(text);
-    char *copy = malloc(length + 1);
+    char *copy = cgem_alloc(length + 1);
 
     if (!copy) {
         return NULL;
@@ -37,7 +37,7 @@ static char *copy_string(const char *text)
 
 static cgem_attribute_value_t *new_value(cgem_attribute_value_kind_t kind)
 {
-    cgem_attribute_value_t *value = calloc(1, sizeof(*value));
+    cgem_attribute_value_t *value = cgem_alloc_zeroed(1, sizeof(*value));
 
     if (!value) {
         return NULL;
@@ -90,7 +90,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_string(const char *value)
     }
     result->string = copy_string(value);
     if (!result->string) {
-        free(result);
+        cgem_free(result);
         return NULL;
     }
     return result;
@@ -105,7 +105,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_symbol(const char *value)
     }
     result->string = copy_string(value);
     if (!result->string) {
-        free(result);
+        cgem_free(result);
         return NULL;
     }
     return result;
@@ -121,13 +121,13 @@ static void free_value_contents(cgem_attribute_value_t *value)
     switch (value->kind) {
     case ATTR_VALUE_STRING:
     case ATTR_VALUE_SYMBOL:
-        free(value->string);
+        cgem_free(value->string);
         break;
     case ATTR_VALUE_LIST:
         for (size_t i = 0; i < value->list.count; i++) {
             free_value_contents(&value->list.items[i]);
         }
-        free(value->list.items);
+        cgem_free(value->list.items);
         break;
     default:
         break;
@@ -140,7 +140,7 @@ void cgem_attribute_value_free(cgem_attribute_value_t *value)
         return;
     }
     free_value_contents(value);
-    free(value);
+    cgem_free(value);
 }
 
 bool cgem_attribute_value_list_append(cgem_attribute_value_t *list,
@@ -152,7 +152,7 @@ bool cgem_attribute_value_list_append(cgem_attribute_value_t *list,
     if (list->list.count == list->list.capacity) {
         size_t capacity = list->list.capacity ? list->list.capacity * 2 : 4;
         cgem_attribute_value_t *items =
-            realloc(list->list.items, capacity * sizeof(*items));
+            cgem_realloc(list->list.items, capacity * sizeof(*items));
 
         if (!items) {
             return false;
@@ -161,7 +161,7 @@ bool cgem_attribute_value_list_append(cgem_attribute_value_t *list,
         list->list.capacity = capacity;
     }
     list->list.items[list->list.count++] = *item;
-    free(item);
+    cgem_free(item);
     return true;
 }
 
@@ -212,14 +212,14 @@ const cgem_attribute_value_t *cgem_attribute_value_list_get(
 cgem_attribute_t *cgem_attribute_new(const char *key,
                                      cgem_attribute_value_t *value)
 {
-    cgem_attribute_t *attribute = calloc(1, sizeof(*attribute));
+    cgem_attribute_t *attribute = cgem_alloc_zeroed(1, sizeof(*attribute));
 
     if (!attribute) {
         return NULL;
     }
     attribute->key = copy_string(key);
     if (!attribute->key) {
-        free(attribute);
+        cgem_free(attribute);
         return NULL;
     }
     attribute->value = value;
@@ -231,9 +231,9 @@ void cgem_attribute_free(cgem_attribute_t *attribute)
     if (!attribute) {
         return;
     }
-    free(attribute->key);
+    cgem_free(attribute->key);
     cgem_attribute_value_free(attribute->value);
-    free(attribute);
+    cgem_free(attribute);
 }
 
 const char *cgem_attribute_get_key(const cgem_attribute_t *attribute)

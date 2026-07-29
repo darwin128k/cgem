@@ -28,6 +28,7 @@ else()
 endif()
 
 set(CGEM_COMPILER_SOURCES
+    src/cgem/core/allocator.c
     src/cgem/core/attribute.c
     src/cgem/core/attributes.c
     src/cgem/core/node.c

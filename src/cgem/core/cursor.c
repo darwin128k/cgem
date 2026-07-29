@@ -1,6 +1,6 @@
 #include "cgem/core/cursor.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 
 struct cgem_cursor {
     cgem_node_t **stack;
@@ -12,7 +12,7 @@ static bool push_selected(cgem_cursor_t *cursor, cgem_node_t *node)
 {
     if (cursor->count == cursor->capacity) {
         size_t capacity = cursor->capacity ? cursor->capacity * 2 : 4;
-        cgem_node_t **stack = realloc(cursor->stack, capacity * sizeof(*stack));
+        cgem_node_t **stack = cgem_realloc(cursor->stack, capacity * sizeof(*stack));
 
         if (!stack) {
             return false;
@@ -31,12 +31,12 @@ cgem_cursor_t *cgem_cursor_new(cgem_node_t *root)
     if (!root) {
         return NULL;
     }
-    cursor = calloc(1, sizeof(*cursor));
+    cursor = cgem_alloc_zeroed(1, sizeof(*cursor));
     if (!cursor) {
         return NULL;
     }
     if (!push_selected(cursor, root)) {
-        free(cursor);
+        cgem_free(cursor);
         return NULL;
     }
     return cursor;
@@ -47,8 +47,8 @@ void cgem_cursor_free(cgem_cursor_t *cursor)
     if (!cursor) {
         return;
     }
-    free(cursor->stack);
-    free(cursor);
+    cgem_free(cursor->stack);
+    cgem_free(cursor);
 }
 
 bool cgem_cursor_select(cgem_cursor_t *cursor, size_t index)

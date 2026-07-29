@@ -1,6 +1,6 @@
 #include "cgem/core/node.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 
 bool cgem_node_init(cgem_node_t *node, cgem_node_t *owner)
 {
@@ -20,19 +20,19 @@ void cgem_node_destroy(cgem_node_t *node)
     for (size_t i = 0; i < node->count; i++) {
         cgem_node_free(node->children[i]);
     }
-    free(node->children);
+    cgem_free(node->children);
     cgem_attributes_free(node->attributes);
 }
 
 cgem_node_t *cgem_node_new(cgem_node_t *owner)
 {
-    cgem_node_t *node = malloc(sizeof(*node));
+    cgem_node_t *node = cgem_alloc(sizeof(*node));
 
     if (!node) {
         return NULL;
     }
     if (!cgem_node_init(node, owner)) {
-        free(node);
+        cgem_free(node);
         return NULL;
     }
     return node;
@@ -44,7 +44,7 @@ void cgem_node_free(cgem_node_t *node)
         return;
     }
     cgem_node_destroy(node);
-    free(node);
+    cgem_free(node);
 }
 
 cgem_attributes_t *cgem_node_get_attributes(cgem_node_t *node)
@@ -65,7 +65,7 @@ bool cgem_node_add(cgem_node_t *node, cgem_node_t *child)
     if (node->count == node->capacity) {
         size_t capacity = node->capacity ? node->capacity * 2 : 4;
         cgem_node_t **children =
-            realloc(node->children, capacity * sizeof(*children));
+            cgem_realloc(node->children, capacity * sizeof(*children));
 
         if (!children) {
             return false;

@@ -1,6 +1,6 @@
 #include "cgem/core/attributes.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 #include <string.h>
 
 #define CGEM_ATTRIBUTES_INITIAL_BUCKETS 8
@@ -37,7 +37,7 @@ static bool ensure_buckets(cgem_attributes_t *attributes)
         return true;
     }
     attributes->buckets =
-        calloc(CGEM_ATTRIBUTES_INITIAL_BUCKETS, sizeof(*attributes->buckets));
+        cgem_alloc_zeroed(CGEM_ATTRIBUTES_INITIAL_BUCKETS, sizeof(*attributes->buckets));
     if (!attributes->buckets) {
         return false;
     }
@@ -47,7 +47,7 @@ static bool ensure_buckets(cgem_attributes_t *attributes)
 
 static bool rehash(cgem_attributes_t *attributes, size_t new_bucket_count)
 {
-    attr_bucket_node_t **new_buckets = calloc(new_bucket_count, sizeof(*new_buckets));
+    attr_bucket_node_t **new_buckets = cgem_alloc_zeroed(new_bucket_count, sizeof(*new_buckets));
 
     if (!new_buckets) {
         return false;
@@ -65,7 +65,7 @@ static bool rehash(cgem_attributes_t *attributes, size_t new_bucket_count)
             node = next;
         }
     }
-    free(attributes->buckets);
+    cgem_free(attributes->buckets);
     attributes->buckets = new_buckets;
     attributes->bucket_count = new_bucket_count;
     return true;
@@ -95,7 +95,7 @@ static attr_bucket_node_t *find_node(const cgem_attributes_t *attributes,
 
 cgem_attributes_t *cgem_attributes_new(void)
 {
-    return calloc(1, sizeof(cgem_attributes_t));
+    return cgem_alloc_zeroed(1, sizeof(cgem_attributes_t));
 }
 
 void cgem_attributes_free(cgem_attributes_t *attributes)
@@ -109,16 +109,16 @@ void cgem_attributes_free(cgem_attributes_t *attributes)
         while (node) {
             attr_bucket_node_t *next = node->next;
 
-            free(node);
+            cgem_free(node);
             node = next;
         }
     }
-    free(attributes->buckets);
+    cgem_free(attributes->buckets);
     for (size_t i = 0; i < attributes->count; i++) {
         cgem_attribute_free(attributes->items[i]);
     }
-    free(attributes->items);
-    free(attributes);
+    cgem_free(attributes->items);
+    cgem_free(attributes);
 }
 
 bool cgem_attributes_add(cgem_attributes_t *attributes,
@@ -146,7 +146,7 @@ bool cgem_attributes_add(cgem_attributes_t *attributes,
     if (attributes->count == attributes->capacity) {
         size_t capacity = attributes->capacity ? attributes->capacity * 2 : 4;
         cgem_attribute_t **items =
-            realloc(attributes->items, capacity * sizeof(*items));
+            cgem_realloc(attributes->items, capacity * sizeof(*items));
 
         if (!items) {
             return false;
@@ -159,7 +159,7 @@ bool cgem_attributes_add(cgem_attributes_t *attributes,
             return false;
         }
     }
-    node = malloc(sizeof(*node));
+    node = cgem_alloc(sizeof(*node));
     if (!node) {
         return false;
     }

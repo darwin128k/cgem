@@ -1,6 +1,6 @@
 #include "cgem/core/reader.h"
 
-#include <stdlib.h>
+#include "cgem/core/allocator.h"
 
 struct cgem_reader {
     const cgem_reader_vtable_t *vtable;
@@ -14,7 +14,7 @@ cgem_reader_t *cgem_reader_new(const cgem_reader_vtable_t *vtable, void *self)
     if (!vtable || !vtable->read) {
         return NULL;
     }
-    reader = malloc(sizeof(*reader));
+    reader = cgem_alloc(sizeof(*reader));
     if (!reader) {
         return NULL;
     }
@@ -31,7 +31,7 @@ void cgem_reader_free(cgem_reader_t *reader)
     if (reader->vtable->free) {
         reader->vtable->free(reader->self);
     }
-    free(reader);
+    cgem_free(reader);
 }
 
 bool cgem_reader_read(cgem_reader_t *reader, char *buffer, size_t capacity,

@@ -10,6 +10,7 @@ bool cgem_node_init(cgem_node_t *node, cgem_node_t *owner)
     }
     node->owner = owner;
     cgem_array_init(&node->children, 0, sizeof(cgem_node_t *));
+    node->allows_children = true;
     return true;
 }
 
@@ -57,9 +58,21 @@ cgem_node_t *cgem_node_get_owner(const cgem_node_t *node)
     return node ? node->owner : NULL;
 }
 
+void cgem_node_set_allows_children(cgem_node_t *node, bool allowed)
+{
+    if (node) {
+        node->allows_children = allowed;
+    }
+}
+
+bool cgem_node_get_allows_children(const cgem_node_t *node)
+{
+    return node ? node->allows_children : false;
+}
+
 bool cgem_node_add(cgem_node_t *node, cgem_node_t *child)
 {
-    if (!node || !child) {
+    if (!node || !child || !node->allows_children) {
         return false;
     }
     return cgem_array_push_back(&node->children, &child);

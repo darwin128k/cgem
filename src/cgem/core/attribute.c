@@ -2,6 +2,7 @@
 
 #include "cgem/core/allocator.h"
 #include "cgem/core/array.h"
+#include "cgem/core/string.h"
 #include <string.h>
 
 struct cgem_attribute_value {
@@ -10,7 +11,7 @@ struct cgem_attribute_value {
         cgem_bool_t boolean;
         cgem_llong_t integer;
         cgem_double_t floating;
-        cgem_char_t *string;
+        cgem_string_t *string;
         cgem_array_t list;
     };
 };
@@ -86,7 +87,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_string(
     if (!result) {
         return NULL;
     }
-    result->string = copy_string(value);
+    result->string = cgem_string_new(value);
     if (!result->string) {
         cgem_free(result);
         return NULL;
@@ -102,7 +103,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_symbol(
     if (!result) {
         return NULL;
     }
-    result->string = copy_string(value);
+    result->string = cgem_string_new(value);
     if (!result->string) {
         cgem_free(result);
         return NULL;
@@ -126,7 +127,7 @@ static void free_value_contents(cgem_attribute_value_t *value)
     switch (value->kind) {
     case ATTR_VALUE_STRING:
     case ATTR_VALUE_SYMBOL:
-        cgem_free(value->string);
+        cgem_string_free(value->string);
         break;
     case ATTR_VALUE_LIST:
         for (size_t i = 0; i < cgem_array_size(&value->list); i++) {
@@ -190,7 +191,7 @@ const cgem_char_t *cgem_attribute_value_get_string(
                    value->kind != ATTR_VALUE_SYMBOL)) {
         return NULL;
     }
-    return value->string;
+    return cgem_string_get_data(value->string);
 }
 
 size_t cgem_attribute_value_list_get_count(const cgem_attribute_value_t *value)
@@ -216,7 +217,7 @@ size_t cgem_attribute_value_get_size(const cgem_attribute_value_t *value)
         return sizeof(cgem_double_t);
     case ATTR_VALUE_STRING:
     case ATTR_VALUE_SYMBOL:
-        return strlen(value->string) + 1;
+        return cgem_string_get_length(value->string) + 1;
     case ATTR_VALUE_LIST: {
         size_t total = 0;
 

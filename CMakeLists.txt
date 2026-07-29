@@ -34,6 +34,7 @@ endif()
 set(CGEM_CORE_SOURCES
     src/cgem/core/allocator.c
     src/cgem/core/array.c
+    src/cgem/core/string.c
     src/cgem/core/attribute.c
     src/cgem/core/attributes.c
     src/cgem/core/node.c

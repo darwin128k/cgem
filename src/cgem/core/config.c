@@ -108,30 +108,26 @@ static cgem_attribute_value_t *classify_value(const char *raw)
     return cgem_attribute_value_new_string(raw);
 }
 
-static bool parse_line(cgem_attributes_t *config, char *line, char *error,
-                       size_t error_size)
+static bool parse_key_value(cgem_attributes_t *config, char *text, char *error,
+                            size_t error_size)
 {
-    char *trimmed = trim(line);
     char *equals;
     char *key;
     char *value_text;
     cgem_attribute_value_t *value;
     cgem_attribute_t *attribute;
 
-    if (!*trimmed || trimmed[0] == '#') {
-        return true;
-    }
-    equals = strchr(trimmed, '=');
+    equals = strchr(text, '=');
     if (!equals) {
-        snprintf(error, error_size, "invalid config line (missing '='): %s",
-                 trimmed);
+        snprintf(error, error_size, "invalid \"key=value\" entry (missing '='): %s",
+                 text);
         return false;
     }
     *equals = '\0';
-    key = trim(trimmed);
+    key = trim(text);
     value_text = unquote(trim(equals + 1));
     if (!*key) {
-        snprintf(error, error_size, "invalid config line (empty key)");
+        snprintf(error, error_size, "invalid \"key=value\" entry (empty key)");
         return false;
     }
     value = classify_value(value_text);
@@ -149,6 +145,60 @@ static bool parse_line(cgem_attributes_t *config, char *line, char *error,
         cgem_attribute_free(attribute);
         snprintf(error, error_size, "out of memory");
         return false;
+    }
+    return true;
+}
+
+static bool parse_line(cgem_attributes_t *config, char *line, char *error,
+                       size_t error_size)
+{
+    char *trimmed = trim(line);
+
+    if (!*trimmed || trimmed[0] == '#') {
+        return true;
+    }
+    return parse_key_value(config, trimmed, error, error_size);
+}
+
+bool cgem_config_parse_arg(cgem_attributes_t *config, const char *arg,
+                           char *error, size_t error_size)
+{
+    size_t length;
+    char *copy;
+    bool ok;
+
+    if (!config || !arg) {
+        snprintf(error, error_size, "no config or argument");
+        return false;
+    }
+    length = strlen(arg);
+    copy = cgem_alloc(length + 1);
+    if (!copy) {
+        snprintf(error, error_size, "out of memory");
+        return false;
+    }
+    memcpy(copy, arg, length + 1);
+    ok = parse_key_value(config, copy, error, error_size);
+    cgem_free(copy);
+    return ok;
+}
+
+bool cgem_config_parse_args(cgem_attributes_t *config, int argc, char **argv,
+                            char *error, size_t error_size)
+{
+    int i;
+
+    if (!config) {
+        snprintf(error, error_size, "no config");
+        return false;
+    }
+    for (i = 0; i < argc; i++) {
+        if (!strchr(argv[i], '=')) {
+            continue;
+        }
+        if (!cgem_config_parse_arg(config, argv[i], error, error_size)) {
+            return false;
+        }
     }
     return true;
 }

@@ -37,6 +37,9 @@ set(CGEM_COMPILER_SOURCES
     src/cgem/core/module.c
     src/cgem/core/package.c
     src/cgem/core/project.c
+    src/cgem/core/reader.c
+    src/cgem/core/writer.c
+    src/cgem/core/stream.c
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
     src/cgem/compiler.c

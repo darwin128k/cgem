@@ -8,35 +8,20 @@ typedef struct {
     char *data;
     size_t size;
     size_t capacity;
-    size_t refcount;
 } memory_buffer_t;
 
 static memory_buffer_t *buffer_new(void)
 {
-    memory_buffer_t *buffer = cgem_alloc_zeroed(1, sizeof(*buffer));
-
-    if (!buffer) {
-        return NULL;
-    }
-    buffer->refcount = 1;
-    return buffer;
+    return cgem_alloc_zeroed(1, sizeof(memory_buffer_t));
 }
 
-static void buffer_retain(memory_buffer_t *buffer)
-{
-    buffer->refcount++;
-}
-
-static void buffer_release(memory_buffer_t *buffer)
+static void buffer_free(memory_buffer_t *buffer)
 {
     if (!buffer) {
         return;
     }
-    buffer->refcount--;
-    if (buffer->refcount == 0) {
-        cgem_free(buffer->data);
-        cgem_free(buffer);
-    }
+    cgem_free(buffer->data);
+    cgem_free(buffer);
 }
 
 static bool buffer_append(memory_buffer_t *buffer, const char *data, size_t size)
@@ -60,6 +45,7 @@ static bool buffer_append(memory_buffer_t *buffer, const char *data, size_t size
     return true;
 }
 
+/* The writer always owns the buffer: its free() releases the data. */
 static bool memory_write(void *self, const char *data, size_t size)
 {
     return buffer_append((memory_buffer_t *) self, data, size);
@@ -67,7 +53,7 @@ static bool memory_write(void *self, const char *data, size_t size)
 
 static void memory_writer_free(void *self)
 {
-    buffer_release((memory_buffer_t *) self);
+    buffer_free((memory_buffer_t *) self);
 }
 
 static const cgem_writer_vtable_t memory_writer_vtable = {
@@ -94,20 +80,34 @@ static bool memory_read(void *self, char *out, size_t capacity, size_t *out_read
     return true;
 }
 
-static void memory_reader_free(void *self)
+/* Reader paired with a writer (via a stream): borrows the buffer, the
+ * writer owns and frees it. The writer must outlive this reader. */
+static void memory_reader_free_borrowed(void *self)
+{
+    cgem_free(self);
+}
+
+static const cgem_reader_vtable_t borrowed_memory_reader_vtable = {
+    memory_read,
+    memory_reader_free_borrowed
+};
+
+/* Standalone reader (no paired writer): owns the buffer outright. */
+static void memory_reader_free_owned(void *self)
 {
     memory_reader_state_t *state = self;
 
-    buffer_release(state->buffer);
+    buffer_free(state->buffer);
     cgem_free(state);
 }
 
-static const cgem_reader_vtable_t memory_reader_vtable = {
+static const cgem_reader_vtable_t owned_memory_reader_vtable = {
     memory_read,
-    memory_reader_free
+    memory_reader_free_owned
 };
 
-static cgem_reader_t *reader_over_buffer(memory_buffer_t *buffer)
+static cgem_reader_t *reader_over_buffer(memory_buffer_t *buffer,
+                                         const cgem_reader_vtable_t *vtable)
 {
     memory_reader_state_t *state = cgem_alloc(sizeof(*state));
     cgem_reader_t *reader;
@@ -117,10 +117,8 @@ static cgem_reader_t *reader_over_buffer(memory_buffer_t *buffer)
     }
     state->buffer = buffer;
     state->at = 0;
-    buffer_retain(buffer);
-    reader = cgem_reader_new(&memory_reader_vtable, state);
+    reader = cgem_reader_new(vtable, state);
     if (!reader) {
-        buffer_release(buffer);
         cgem_free(state);
     }
     return reader;
@@ -138,12 +136,12 @@ cgem_stream_t *cgem_memory_stream_new(void)
     }
     writer = cgem_writer_new(&memory_writer_vtable, buffer);
     if (!writer) {
-        buffer_release(buffer);
+        buffer_free(buffer);
         return NULL;
     }
-    reader = reader_over_buffer(buffer);
+    reader = reader_over_buffer(buffer, &borrowed_memory_reader_vtable);
     if (!reader) {
-        cgem_writer_free(writer);
+        cgem_writer_free(writer); /* frees the buffer */
         return NULL;
     }
     stream = cgem_stream_new(reader, writer);
@@ -165,7 +163,7 @@ cgem_writer_t *cgem_memory_writer_new(void)
     }
     writer = cgem_writer_new(&memory_writer_vtable, buffer);
     if (!writer) {
-        buffer_release(buffer);
+        buffer_free(buffer);
     }
     return writer;
 }
@@ -179,10 +177,12 @@ cgem_reader_t *cgem_memory_reader_new(const char *data, size_t size)
         return NULL;
     }
     if (size > 0 && !buffer_append(buffer, data, size)) {
-        buffer_release(buffer);
+        buffer_free(buffer);
         return NULL;
     }
-    reader = reader_over_buffer(buffer);
-    buffer_release(buffer);
+    reader = reader_over_buffer(buffer, &owned_memory_reader_vtable);
+    if (!reader) {
+        buffer_free(buffer);
+    }
     return reader;
 }

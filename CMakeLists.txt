@@ -33,6 +33,10 @@ set(CGEM_COMPILER_SOURCES
     src/cgem/core/node.c
     src/cgem/core/symbol.c
     src/cgem/core/object.c
+    src/cgem/core/scope.c
+    src/cgem/core/module.c
+    src/cgem/core/package.c
+    src/cgem/core/project.c
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
     src/cgem/compiler.c

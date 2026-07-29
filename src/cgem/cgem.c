@@ -248,10 +248,10 @@ static void print_usage(const char *program)
 {
 #ifndef CGEM_NO_IDE
     fprintf(stderr,
-            "usage: %s -g -i <input> [-i <input> ...] "
-            "-I <include-path> -s <source-path> -c <compiler> [--ide]\n"
+            "usage: %s -g -I <input> [-I <input> ...] "
+            "-i <include-path> -s <source-path> -c <compiler> [--ide]\n"
             "       [--clean-output true|false]\n"
-            "       %s -f -i <input> [-i <input> ...]\n"
+            "       %s -f -I <input> [-I <input> ...]\n"
             "       %s --generate --input <input> "
             "--include <include-path> --source <source-path> "
             "--compiler <compiler> [--ide]\n"
@@ -260,10 +260,10 @@ static void print_usage(const char *program)
             program, program, program, program);
 #else
     fprintf(stderr,
-            "usage: %s -g -i <input> [-i <input> ...] "
-            "-I <include-path> -s <source-path> -c <compiler>\n"
+            "usage: %s -g -I <input> [-I <input> ...] "
+            "-i <include-path> -s <source-path> -c <compiler>\n"
             "       [--clean-output true|false]\n"
-            "       %s -f -i <input> [-i <input> ...]\n"
+            "       %s -f -I <input> [-I <input> ...]\n"
             "       %s --generate --input <input> "
             "--include <include-path> --source <source-path> "
             "--compiler <compiler>\n"
@@ -302,7 +302,7 @@ static bool parse_arguments(int argc, char **argv, CliOptions *options)
             }
             options->format_mode = true;
             continue;
-        } else if (strcmp(argument, "-i") == 0 ||
+        } else if (strcmp(argument, "-I") == 0 ||
                    strcmp(argument, "--input") == 0) {
             if (++at >= argc) {
                 fprintf(stderr, "cgem: --input requires a path\n");
@@ -310,7 +310,7 @@ static bool parse_arguments(int argc, char **argv, CliOptions *options)
             }
             options->input_paths[options->input_count++] = argv[at];
             continue;
-        } else if (strcmp(argument, "-I") == 0 ||
+        } else if (strcmp(argument, "-i") == 0 ||
                    strcmp(argument, "--include") == 0) {
             destination = &options->include_path;
             name = "--include";

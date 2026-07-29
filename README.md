@@ -46,7 +46,7 @@ in context, and generate ordinary C you can read, diff, and ship.
 ```sh
 cmake -B build
 cmake --build build
-./build/cgem -g -c cc -i program.cgem -I include -s src --ide
+./build/cgem -g -c cc -I program.cgem -i include -s src --ide
 ```
 
 ### Windows 10/11
@@ -56,7 +56,7 @@ Build with MinGW-w64:
 ```sh
 cmake -B build -G "MinGW Makefiles"
 cmake --build build
-build\cgem.exe -g -c gcc -i program.cgem -I include -s src --ide
+build\cgem.exe -g -c gcc -I program.cgem -i include -s src --ide
 ```
 
 On Windows 10/11 the editor uses Virtual Terminal sequences when the console
@@ -70,7 +70,7 @@ Build with MinGW-w64 32-bit and the XP API target:
 ```sh
 cmake -B build -G "MinGW Makefiles" -DCMAKE_C_FLAGS="-m32 -D_WIN32_WINNT=0x0501"
 cmake --build build
-build\cgem.exe -g -c i686-w64-mingw32-gcc -i program.cgem -I include -s src --ide
+build\cgem.exe -g -c i686-w64-mingw32-gcc -I program.cgem -i include -s src --ide
 ```
 
 On Windows XP the editor falls back to the classic Console API, so it works in
@@ -104,7 +104,7 @@ Windows targets need `gcc-mingw-w64-i686` and `gcc-mingw-w64-x86-64` (installed
 automatically in CI). Outputs land in `dist/`.
 
 `-g`/`--generate` enables generation. It requires at least one input, an
-include destination, and a source destination. `-I`/`--include` and
+include destination, and a source destination. `-i`/`--include` and
 `-s`/`--source` must point at **generated output** directories (for example
 `include/` and `source/`), not at the CGEM compiler sources in `src/`.
 Generation removes only the package directories declared at the root of the
@@ -115,7 +115,7 @@ can be disabled with `--clean-output false`:
 ```sh
 ./build/cgem --generate --input program.cgem \
     --include generated/include --source generated/src --compiler cc
-./build/cgem -g -i program.cgem -I include -s source -c gcc --clean-output true
+./build/cgem -g -I program.cgem -i include -s source -c gcc --clean-output true
 ```
 
 `-c`/`--compiler` is required for generation and IDE sessions; pure formatting
@@ -142,16 +142,16 @@ In IDE mode, the buffer is formatted automatically on save and before generate.
 Add `--ide` to start the interactive mini IDE:
 
 ```sh
-./build/cgem -g -c cc -i program.cgem -I generated/include \
+./build/cgem -g -c cc -I program.cgem -i generated/include \
     -s generated/src --ide
 ```
 
-`-i`/`--input` accepts a `.cgem` file or a directory. Generation mode allows
+`-I`/`--input` accepts a `.cgem` file or a directory. Generation mode allows
 the option to be repeated and recursively reads `.cgem` files from
 directories:
 
 ```sh
-./build/cgem -g -c cc -i core.cgem -i packages/ -I include -s src
+./build/cgem -g -c cc -I core.cgem -I packages/ -i include -s src
 ```
 
 IDE mode accepts zero or one input. A file is opened directly; a directory
@@ -159,7 +159,7 @@ opens or creates its `main.cgem`. Without `--input`, the IDE opens
 `./main.cgem` in the current working directory:
 
 ```sh
-./build/cgem -g -c cc -I include -s src --ide
+./build/cgem -g -c cc -i include -s src --ide
 ```
 
 ## Keys

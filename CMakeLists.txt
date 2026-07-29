@@ -28,6 +28,13 @@ else()
 endif()
 
 set(CGEM_COMPILER_SOURCES
+    src/cgem/core/attribute.c
+    src/cgem/core/attributes.c
+    src/cgem/core/node.c
+    src/cgem/core/symbol.c
+    src/cgem/core/object.c
+    src/cgem/core/cursor.c
+    src/cgem/core/tree.c
     src/cgem/compiler.c
     src/cgem/compile_util.c
     src/cgem/diagnostic.c

@@ -1,6 +1,13 @@
 #ifndef CGEM_COMPILER_INTERNAL_H
 #define CGEM_COMPILER_INTERNAL_H
 
+#include "cgem/core/attribute.h"
+#include "cgem/core/attributes.h"
+#include "cgem/core/node.h"
+#include "cgem/core/symbol.h"
+#include "cgem/core/object.h"
+#include "cgem/core/cursor.h"
+#include "cgem/core/tree.h"
 #include "cgem/diagnostic.h"
 
 #include <stdbool.h>

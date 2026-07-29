@@ -2,14 +2,14 @@
 #define CGEM_PRIMITIVE_H
 
 #include <lh/bool.h>
-#include <lh/char.h>
 #include <lh/numeric/types.h>
+#include <lh/str/char.h>
 
 #include <stdbool.h>
 
-typedef lh_uchar_t cgem_uchar_t;
-typedef lh_schar_t cgem_schar_t;
-typedef lh_char_t cgem_char_t;
+typedef lh_str_uchar_t cgem_uchar_t;
+typedef lh_str_schar_t cgem_schar_t;
+typedef lh_str_char_t cgem_char_t;
 typedef lh_short_t cgem_short_t;
 typedef lh_ushort_t cgem_ushort_t;
 typedef lh_int_t cgem_int_t;

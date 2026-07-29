@@ -57,14 +57,10 @@ set(CGEM_CORE_SOURCES
     ${CGEM_PLATFORM_SOURCE}
 )
 
-# cgem_core's primitive types alias the real "lh" (Light Helper) project's
-# portable typedefs instead of raw C types directly.
-set(CGEM_LH_INCLUDE_DIR "$ENV{HOME}/Документы/Projects/lh 2/include" CACHE PATH
-    "Include directory of the lh (Light Helper) project")
-
+# cgem_core's primitive types alias "lh" (Light Helper) typedefs, generated
+# from main.cgem into include/lh/ and already on the include path below.
 add_library(cgem_core SHARED ${CGEM_CORE_SOURCES})
-target_include_directories(cgem_core PUBLIC ${CMAKE_SOURCE_DIR}/include
-    ${CGEM_LH_INCLUDE_DIR})
+target_include_directories(cgem_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set_target_properties(cgem_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if(UNIX AND NOT APPLE)

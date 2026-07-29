@@ -1,27 +1,15 @@
 #include "cgem/core/cursor.h"
 
 #include "cgem/core/allocator.h"
+#include "cgem/core/array.h"
 
 struct cgem_cursor {
-    cgem_node_t **stack;
-    size_t count;
-    size_t capacity;
+    cgem_array_t stack;
 };
 
 static bool push_selected(cgem_cursor_t *cursor, cgem_node_t *node)
 {
-    if (cursor->count == cursor->capacity) {
-        size_t capacity = cursor->capacity ? cursor->capacity * 2 : 4;
-        cgem_node_t **stack = cgem_realloc(cursor->stack, capacity * sizeof(*stack));
-
-        if (!stack) {
-            return false;
-        }
-        cursor->stack = stack;
-        cursor->capacity = capacity;
-    }
-    cursor->stack[cursor->count++] = node;
-    return true;
+    return cgem_array_push_back(&cursor->stack, &node);
 }
 
 cgem_cursor_t *cgem_cursor_new(cgem_node_t *root)
@@ -31,11 +19,13 @@ cgem_cursor_t *cgem_cursor_new(cgem_node_t *root)
     if (!root) {
         return NULL;
     }
-    cursor = cgem_alloc_zeroed(1, sizeof(*cursor));
+    cursor = cgem_alloc(sizeof(*cursor));
     if (!cursor) {
         return NULL;
     }
+    cgem_array_init(&cursor->stack, 0, sizeof(cgem_node_t *));
     if (!push_selected(cursor, root)) {
+        cgem_array_deinit(&cursor->stack);
         cgem_free(cursor);
         return NULL;
     }
@@ -47,7 +37,7 @@ void cgem_cursor_free(cgem_cursor_t *cursor)
     if (!cursor) {
         return;
     }
-    cgem_free(cursor->stack);
+    cgem_array_deinit(&cursor->stack);
     cgem_free(cursor);
 }
 
@@ -72,17 +62,20 @@ bool cgem_cursor_select(cgem_cursor_t *cursor, size_t index)
 
 bool cgem_cursor_unselect(cgem_cursor_t *cursor)
 {
-    if (!cursor || cursor->count <= 1) {
+    if (!cursor || cgem_array_size(&cursor->stack) <= 1) {
         return false;
     }
-    cursor->count--;
+    cgem_array_pop_back(&cursor->stack);
     return true;
 }
 
 cgem_node_t *cgem_cursor_get_selected(const cgem_cursor_t *cursor)
 {
-    if (!cursor || cursor->count == 0) {
+    cgem_node_t **slot;
+
+    if (!cursor || cgem_array_size(&cursor->stack) == 0) {
         return NULL;
     }
-    return cursor->stack[cursor->count - 1];
+    slot = cgem_array_at(&cursor->stack, cgem_array_size(&cursor->stack) - 1);
+    return slot ? *slot : NULL;
 }

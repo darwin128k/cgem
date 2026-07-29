@@ -1,6 +1,7 @@
 #include "cgem/core/attributes.h"
 
 #include "cgem/core/allocator.h"
+#include "cgem/core/array.h"
 #include <string.h>
 
 #define CGEM_ATTRIBUTES_INITIAL_BUCKETS 8
@@ -12,9 +13,7 @@ typedef struct attr_bucket_node {
 } attr_bucket_node_t;
 
 struct cgem_attributes {
-    cgem_attribute_t **items;
-    size_t count;
-    size_t capacity;
+    cgem_array_t items;
 
     attr_bucket_node_t **buckets;
     size_t bucket_count;
@@ -95,7 +94,13 @@ static attr_bucket_node_t *find_node(const cgem_attributes_t *attributes,
 
 cgem_attributes_t *cgem_attributes_new(void)
 {
-    return cgem_alloc_zeroed(1, sizeof(cgem_attributes_t));
+    cgem_attributes_t *attributes = cgem_alloc_zeroed(1, sizeof(*attributes));
+
+    if (!attributes) {
+        return NULL;
+    }
+    cgem_array_init(&attributes->items, 0, sizeof(cgem_attribute_t *));
+    return attributes;
 }
 
 void cgem_attributes_free(cgem_attributes_t *attributes)
@@ -114,10 +119,10 @@ void cgem_attributes_free(cgem_attributes_t *attributes)
         }
     }
     cgem_free(attributes->buckets);
-    for (size_t i = 0; i < attributes->count; i++) {
-        cgem_attribute_free(attributes->items[i]);
+    for (size_t i = 0; i < cgem_array_size(&attributes->items); i++) {
+        cgem_attribute_free(*(cgem_attribute_t **) cgem_array_at(&attributes->items, i));
     }
-    cgem_free(attributes->items);
+    cgem_array_deinit(&attributes->items);
     cgem_free(attributes);
 }
 
@@ -128,6 +133,7 @@ bool cgem_attributes_add(cgem_attributes_t *attributes,
     attr_bucket_node_t *existing;
     attr_bucket_node_t *node;
     size_t index;
+    size_t item_index;
 
     if (!attributes || !attribute) {
         return false;
@@ -138,23 +144,16 @@ bool cgem_attributes_add(cgem_attributes_t *attributes,
     key = cgem_attribute_get_key(attribute);
     existing = find_node(attributes, key);
     if (existing) {
-        cgem_attribute_free(attributes->items[existing->item_index]);
-        attributes->items[existing->item_index] = attribute;
+        cgem_attribute_t **slot =
+            cgem_array_at(&attributes->items, existing->item_index);
+
+        cgem_attribute_free(*slot);
+        *slot = attribute;
         existing->attribute = attribute;
         return true;
     }
-    if (attributes->count == attributes->capacity) {
-        size_t capacity = attributes->capacity ? attributes->capacity * 2 : 4;
-        cgem_attribute_t **items =
-            cgem_realloc(attributes->items, capacity * sizeof(*items));
-
-        if (!items) {
-            return false;
-        }
-        attributes->items = items;
-        attributes->capacity = capacity;
-    }
-    if (attributes->count >= attributes->bucket_count) {
+    item_index = cgem_array_size(&attributes->items);
+    if (cgem_array_size(&attributes->items) >= attributes->bucket_count) {
         if (!rehash(attributes, attributes->bucket_count * 2)) {
             return false;
         }
@@ -163,28 +162,33 @@ bool cgem_attributes_add(cgem_attributes_t *attributes,
     if (!node) {
         return false;
     }
-    attributes->items[attributes->count] = attribute;
+    if (!cgem_array_push_back(&attributes->items, &attribute)) {
+        cgem_free(node);
+        return false;
+    }
     node->attribute = attribute;
-    node->item_index = attributes->count;
+    node->item_index = item_index;
     index = hash_key(key) % attributes->bucket_count;
     node->next = attributes->buckets[index];
     attributes->buckets[index] = node;
-    attributes->count++;
     return true;
 }
 
 size_t cgem_attributes_get_count(const cgem_attributes_t *attributes)
 {
-    return attributes ? attributes->count : 0;
+    return attributes ? cgem_array_size(&attributes->items) : 0;
 }
 
 const cgem_attribute_t *cgem_attributes_get(
     const cgem_attributes_t *attributes, size_t index)
 {
-    if (!attributes || index >= attributes->count) {
+    cgem_attribute_t **slot;
+
+    if (!attributes) {
         return NULL;
     }
-    return attributes->items[index];
+    slot = cgem_array_at(&attributes->items, index);
+    return slot ? *slot : NULL;
 }
 
 const cgem_attribute_t *cgem_attributes_find(

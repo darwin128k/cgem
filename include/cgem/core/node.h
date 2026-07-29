@@ -1,6 +1,7 @@
 #ifndef CGEM_NODE_H
 #define CGEM_NODE_H
 
+#include "cgem/core/array.h"
 #include "cgem/core/attributes.h"
 
 #include <stdbool.h>
@@ -11,9 +12,7 @@ typedef struct cgem_node cgem_node_t;
 struct cgem_node {
     cgem_attributes_t *attributes;
     cgem_node_t *owner;
-    cgem_node_t **children;
-    size_t count;
-    size_t capacity;
+    cgem_array_t children;
 };
 
 bool cgem_node_init(cgem_node_t *node, cgem_node_t *owner);

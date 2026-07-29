@@ -1,6 +1,7 @@
 #include "cgem/core/attribute.h"
 
 #include "cgem/core/allocator.h"
+#include "cgem/core/array.h"
 #include <string.h>
 
 struct cgem_attribute_value {
@@ -10,11 +11,7 @@ struct cgem_attribute_value {
         long long integer;
         double floating;
         char *string;
-        struct {
-            cgem_attribute_value_t *items;
-            size_t count;
-            size_t capacity;
-        } list;
+        cgem_array_t list;
     };
 };
 
@@ -113,7 +110,13 @@ cgem_attribute_value_t *cgem_attribute_value_new_symbol(const char *value)
 
 cgem_attribute_value_t *cgem_attribute_value_new_list(void)
 {
-    return new_value(ATTR_VALUE_LIST);
+    cgem_attribute_value_t *result = new_value(ATTR_VALUE_LIST);
+
+    if (!result) {
+        return NULL;
+    }
+    cgem_array_init(&result->list, 0, sizeof(cgem_attribute_value_t));
+    return result;
 }
 
 static void free_value_contents(cgem_attribute_value_t *value)
@@ -124,10 +127,10 @@ static void free_value_contents(cgem_attribute_value_t *value)
         cgem_free(value->string);
         break;
     case ATTR_VALUE_LIST:
-        for (size_t i = 0; i < value->list.count; i++) {
-            free_value_contents(&value->list.items[i]);
+        for (size_t i = 0; i < cgem_array_size(&value->list); i++) {
+            free_value_contents(cgem_array_at(&value->list, i));
         }
-        cgem_free(value->list.items);
+        cgem_array_deinit(&value->list);
         break;
     default:
         break;
@@ -149,18 +152,9 @@ bool cgem_attribute_value_list_append(cgem_attribute_value_t *list,
     if (!list || !item || list->kind != ATTR_VALUE_LIST) {
         return false;
     }
-    if (list->list.count == list->list.capacity) {
-        size_t capacity = list->list.capacity ? list->list.capacity * 2 : 4;
-        cgem_attribute_value_t *items =
-            cgem_realloc(list->list.items, capacity * sizeof(*items));
-
-        if (!items) {
-            return false;
-        }
-        list->list.items = items;
-        list->list.capacity = capacity;
+    if (!cgem_array_push_back(&list->list, item)) {
+        return false;
     }
-    list->list.items[list->list.count++] = *item;
     cgem_free(item);
     return true;
 }
@@ -197,16 +191,18 @@ const char *cgem_attribute_value_get_string(const cgem_attribute_value_t *value)
 
 size_t cgem_attribute_value_list_get_count(const cgem_attribute_value_t *value)
 {
-    return value && value->kind == ATTR_VALUE_LIST ? value->list.count : 0;
+    return value && value->kind == ATTR_VALUE_LIST
+               ? cgem_array_size(&value->list)
+               : 0;
 }
 
 const cgem_attribute_value_t *cgem_attribute_value_list_get(
     const cgem_attribute_value_t *value, size_t index)
 {
-    if (!value || value->kind != ATTR_VALUE_LIST || index >= value->list.count) {
+    if (!value || value->kind != ATTR_VALUE_LIST) {
         return NULL;
     }
-    return &value->list.items[index];
+    return cgem_array_at(&value->list, index);
 }
 
 cgem_attribute_t *cgem_attribute_new(const char *key,

@@ -1,6 +1,7 @@
 #include "cgem/core/generator.h"
 
 #include "cgem/core/allocator.h"
+#include "cgem/core/array.h"
 #include "cgem/platform.h"
 
 #include <stdio.h>
@@ -12,13 +13,8 @@ typedef struct {
 } generator_target_t;
 
 struct cgem_generator_registrar {
-    char **attribute_keys;
-    size_t attribute_key_count;
-    size_t attribute_key_capacity;
-
-    generator_target_t *targets;
-    size_t target_count;
-    size_t target_capacity;
+    cgem_array_t attribute_keys;
+    cgem_array_t targets;
 };
 
 struct cgem_generator {
@@ -47,24 +43,14 @@ bool cgem_generator_registrar_add_attribute_key(
     if (!registrar || !key) {
         return false;
     }
-    if (registrar->attribute_key_count == registrar->attribute_key_capacity) {
-        size_t capacity = registrar->attribute_key_capacity
-                               ? registrar->attribute_key_capacity * 2
-                               : 4;
-        char **keys = cgem_realloc(registrar->attribute_keys,
-                                   capacity * sizeof(*keys));
-
-        if (!keys) {
-            return false;
-        }
-        registrar->attribute_keys = keys;
-        registrar->attribute_key_capacity = capacity;
-    }
     copy = copy_string(key);
     if (!copy) {
         return false;
     }
-    registrar->attribute_keys[registrar->attribute_key_count++] = copy;
+    if (!cgem_array_push_back(&registrar->attribute_keys, &copy)) {
+        cgem_free(copy);
+        return false;
+    }
     return true;
 }
 
@@ -72,45 +58,43 @@ bool cgem_generator_registrar_add_target(cgem_generator_registrar_t *registrar,
                                          const char *name,
                                          cgem_generate_fn_t fn)
 {
-    char *copy;
+    generator_target_t target;
 
     if (!registrar || !name || !fn) {
         return false;
     }
-    if (registrar->target_count == registrar->target_capacity) {
-        size_t capacity =
-            registrar->target_capacity ? registrar->target_capacity * 2 : 4;
-        generator_target_t *targets = cgem_realloc(
-            registrar->targets, capacity * sizeof(*targets));
-
-        if (!targets) {
-            return false;
-        }
-        registrar->targets = targets;
-        registrar->target_capacity = capacity;
-    }
-    copy = copy_string(name);
-    if (!copy) {
+    target.name = copy_string(name);
+    if (!target.name) {
         return false;
     }
-    registrar->targets[registrar->target_count].name = copy;
-    registrar->targets[registrar->target_count].fn = fn;
-    registrar->target_count++;
+    target.fn = fn;
+    if (!cgem_array_push_back(&registrar->targets, &target)) {
+        cgem_free(target.name);
+        return false;
+    }
     return true;
+}
+
+static void init_registrar(cgem_generator_registrar_t *registrar)
+{
+    cgem_array_init(&registrar->attribute_keys, 0, sizeof(char *));
+    cgem_array_init(&registrar->targets, 0, sizeof(generator_target_t));
 }
 
 static void free_registrar_contents(cgem_generator_registrar_t *registrar)
 {
     size_t i;
 
-    for (i = 0; i < registrar->attribute_key_count; i++) {
-        cgem_free(registrar->attribute_keys[i]);
+    for (i = 0; i < cgem_array_size(&registrar->attribute_keys); i++) {
+        cgem_free(*(char **) cgem_array_at(&registrar->attribute_keys, i));
     }
-    cgem_free(registrar->attribute_keys);
-    for (i = 0; i < registrar->target_count; i++) {
-        cgem_free(registrar->targets[i].name);
+    cgem_array_deinit(&registrar->attribute_keys);
+    for (i = 0; i < cgem_array_size(&registrar->targets); i++) {
+        generator_target_t *target = cgem_array_at(&registrar->targets, i);
+
+        cgem_free(target->name);
     }
-    cgem_free(registrar->targets);
+    cgem_array_deinit(&registrar->targets);
 }
 
 cgem_generator_t *cgem_generator_load(const char *path, char *error,
@@ -152,7 +136,7 @@ cgem_generator_t *cgem_generator_load(const char *path, char *error,
         platform_library_close(library);
         return NULL;
     }
-    generator = cgem_alloc_zeroed(1, sizeof(*generator));
+    generator = cgem_alloc(sizeof(*generator));
     if (!generator) {
         snprintf(error, error_size, "out of memory");
         platform_library_close(library);
@@ -160,13 +144,14 @@ cgem_generator_t *cgem_generator_load(const char *path, char *error,
     }
     generator->library = library;
     generator->vtable = vtable;
+    init_registrar(&generator->registrar);
     if (!vtable->init(&generator->registrar, error, error_size)) {
         free_registrar_contents(&generator->registrar);
         cgem_free(generator);
         platform_library_close(library);
         return NULL;
     }
-    if (generator->registrar.target_count == 0) {
+    if (cgem_array_size(&generator->registrar.targets) == 0) {
         snprintf(error, error_size, "%s: generator registered no targets", path);
         if (vtable->deinit) {
             vtable->deinit();
@@ -205,8 +190,10 @@ bool cgem_generator_has_attribute_key(const cgem_generator_t *generator,
     if (!generator || !key) {
         return false;
     }
-    for (i = 0; i < generator->registrar.attribute_key_count; i++) {
-        if (strcmp(generator->registrar.attribute_keys[i], key) == 0) {
+    for (i = 0; i < cgem_array_size(&generator->registrar.attribute_keys); i++) {
+        char *existing = *(char **) cgem_array_at(&generator->registrar.attribute_keys, i);
+
+        if (strcmp(existing, key) == 0) {
             return true;
         }
     }
@@ -215,30 +202,36 @@ bool cgem_generator_has_attribute_key(const cgem_generator_t *generator,
 
 size_t cgem_generator_get_attribute_key_count(const cgem_generator_t *generator)
 {
-    return generator ? generator->registrar.attribute_key_count : 0;
+    return generator ? cgem_array_size(&generator->registrar.attribute_keys) : 0;
 }
 
 const char *cgem_generator_get_attribute_key(const cgem_generator_t *generator,
                                              size_t index)
 {
-    if (!generator || index >= generator->registrar.attribute_key_count) {
+    char **slot;
+
+    if (!generator) {
         return NULL;
     }
-    return generator->registrar.attribute_keys[index];
+    slot = cgem_array_at(&generator->registrar.attribute_keys, index);
+    return slot ? *slot : NULL;
 }
 
 size_t cgem_generator_get_target_count(const cgem_generator_t *generator)
 {
-    return generator ? generator->registrar.target_count : 0;
+    return generator ? cgem_array_size(&generator->registrar.targets) : 0;
 }
 
 const char *cgem_generator_get_target_name(const cgem_generator_t *generator,
                                            size_t index)
 {
-    if (!generator || index >= generator->registrar.target_count) {
+    generator_target_t *target;
+
+    if (!generator) {
         return NULL;
     }
-    return generator->registrar.targets[index].name;
+    target = cgem_array_at(&generator->registrar.targets, index);
+    return target ? target->name : NULL;
 }
 
 bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
@@ -251,10 +244,12 @@ bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
         snprintf(error, error_size, "no generator or target specified");
         return false;
     }
-    for (i = 0; i < generator->registrar.target_count; i++) {
-        if (strcmp(generator->registrar.targets[i].name, target) == 0) {
-            return generator->registrar.targets[i].fn(root, writer, error,
-                                                       error_size);
+    for (i = 0; i < cgem_array_size(&generator->registrar.targets); i++) {
+        generator_target_t *candidate =
+            cgem_array_at(&generator->registrar.targets, i);
+
+        if (strcmp(candidate->name, target) == 0) {
+            return candidate->fn(root, writer, error, error_size);
         }
     }
     snprintf(error, error_size, "unknown generator target: %s", target);

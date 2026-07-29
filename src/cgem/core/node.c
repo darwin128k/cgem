@@ -9,18 +9,18 @@ bool cgem_node_init(cgem_node_t *node, cgem_node_t *owner)
         return false;
     }
     node->owner = owner;
-    node->children = NULL;
-    node->count = 0;
-    node->capacity = 0;
+    cgem_array_init(&node->children, 0, sizeof(cgem_node_t *));
     return true;
 }
 
 void cgem_node_destroy(cgem_node_t *node)
 {
-    for (size_t i = 0; i < node->count; i++) {
-        cgem_node_free(node->children[i]);
+    for (size_t i = 0; i < cgem_array_size(&node->children); i++) {
+        cgem_node_t *child = *(cgem_node_t **) cgem_array_at(&node->children, i);
+
+        cgem_node_free(child);
     }
-    cgem_free(node->children);
+    cgem_array_deinit(&node->children);
     cgem_attributes_free(node->attributes);
 }
 
@@ -62,30 +62,21 @@ bool cgem_node_add(cgem_node_t *node, cgem_node_t *child)
     if (!node || !child) {
         return false;
     }
-    if (node->count == node->capacity) {
-        size_t capacity = node->capacity ? node->capacity * 2 : 4;
-        cgem_node_t **children =
-            cgem_realloc(node->children, capacity * sizeof(*children));
-
-        if (!children) {
-            return false;
-        }
-        node->children = children;
-        node->capacity = capacity;
-    }
-    node->children[node->count++] = child;
-    return true;
+    return cgem_array_push_back(&node->children, &child);
 }
 
 size_t cgem_node_get_count(const cgem_node_t *node)
 {
-    return node ? node->count : 0;
+    return node ? cgem_array_size(&node->children) : 0;
 }
 
 cgem_node_t *cgem_node_get(const cgem_node_t *node, size_t index)
 {
-    if (!node || index >= node->count) {
+    cgem_node_t **slot;
+
+    if (!node) {
         return NULL;
     }
-    return node->children[index];
+    slot = cgem_array_at(&node->children, index);
+    return slot ? *slot : NULL;
 }

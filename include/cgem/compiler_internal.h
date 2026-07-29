@@ -2,6 +2,7 @@
 #define CGEM_COMPILER_INTERNAL_H
 
 #include "cgem/core/allocator.h"
+#include "cgem/core/array.h"
 #include "cgem/core/attribute.h"
 #include "cgem/core/attributes.h"
 #include "cgem/core/node.h"

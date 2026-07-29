@@ -20,6 +20,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 if(WIN32)
     set(CGEM_PLATFORM_SOURCE src/cgem/platform_win32.c)
@@ -27,7 +28,10 @@ else()
     set(CGEM_PLATFORM_SOURCE src/cgem/platform_linux.c)
 endif()
 
-set(CGEM_COMPILER_SOURCES
+# cgem_core: the DSL data model (node/attribute/tree/reader/writer/...) and
+# the platform layer. Built as a shared library so both the cgem executable
+# and every dynamically loaded generator link against the same definitions.
+set(CGEM_CORE_SOURCES
     src/cgem/core/allocator.c
     src/cgem/core/attribute.c
     src/cgem/core/attributes.c
@@ -44,6 +48,22 @@ set(CGEM_COMPILER_SOURCES
     src/cgem/core/memory_stream.c
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
+    src/cgem/core/generator.c
+    ${CGEM_PLATFORM_SOURCE}
+)
+
+add_library(cgem_core SHARED ${CGEM_CORE_SOURCES})
+target_include_directories(cgem_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+set_target_properties(cgem_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+if(UNIX AND NOT APPLE)
+    find_library(CGEM_DL_LIBRARY dl)
+    if(CGEM_DL_LIBRARY)
+        target_link_libraries(cgem_core PRIVATE ${CGEM_DL_LIBRARY})
+    endif()
+endif()
+
+set(CGEM_COMPILER_SOURCES
     src/cgem/compiler.c
     src/cgem/compile_util.c
     src/cgem/diagnostic.c
@@ -62,7 +82,6 @@ set(CGEM_SOURCES
     src/cgem/cgem.c
     src/cgem/common.c
     ${CGEM_COMPILER_SOURCES}
-    ${CGEM_PLATFORM_SOURCE}
 )
 
 if(CGEM_IDE)
@@ -108,10 +127,19 @@ endif()
 
 add_executable(cgem ${CGEM_SOURCES})
 target_include_directories(cgem PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(cgem PRIVATE cgem_core)
 
 if(NOT CGEM_IDE)
     target_compile_definitions(cgem PRIVATE CGEM_NO_IDE)
 endif()
+
+# Example out-of-tree generator, loaded by cgem_core's dlopen-based loader
+# at runtime (not linked into the cgem executable). Proves the plugin ABI.
+add_library(cgem_generator_example MODULE generators/example/generator_example.c)
+target_include_directories(cgem_generator_example PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(cgem_generator_example PRIVATE cgem_core)
+set_target_properties(cgem_generator_example PROPERTIES PREFIX ""
+    WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if(CGEM_IDE)
     add_custom_target(run

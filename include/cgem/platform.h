@@ -84,4 +84,8 @@ int platform_mkdir_p(const char *path, char *error, size_t error_size);
 bool platform_set_clipboard(const char *text);
 bool platform_get_clipboard(char **text);
 
+void *platform_library_open(const char *path);
+void *platform_library_symbol(void *handle, const char *name);
+void platform_library_close(void *handle);
+
 #endif

@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -664,4 +665,21 @@ bool platform_get_clipboard(char **text)
     }
     *text = buffer;
     return true;
+}
+
+void *platform_library_open(const char *path)
+{
+    return dlopen(path, RTLD_NOW | RTLD_LOCAL);
+}
+
+void *platform_library_symbol(void *handle, const char *name)
+{
+    return dlsym(handle, name);
+}
+
+void platform_library_close(void *handle)
+{
+    if (handle) {
+        dlclose(handle);
+    }
 }

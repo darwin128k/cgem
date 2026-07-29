@@ -929,3 +929,20 @@ bool platform_get_clipboard(char **text)
     *text = copy;
     return true;
 }
+
+void *platform_library_open(const char *path)
+{
+    return (void *) LoadLibraryA(path);
+}
+
+void *platform_library_symbol(void *handle, const char *name)
+{
+    return (void *) GetProcAddress((HMODULE) handle, name);
+}
+
+void platform_library_close(void *handle)
+{
+    if (handle) {
+        FreeLibrary((HMODULE) handle);
+    }
+}

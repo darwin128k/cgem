@@ -15,6 +15,7 @@
 #include "cgem/core/writer.h"
 #include "cgem/core/stream.h"
 #include "cgem/core/memory_stream.h"
+#include "cgem/core/generator.h"
 #include "cgem/core/cursor.h"
 #include "cgem/core/tree.h"
 #include "cgem/diagnostic.h"

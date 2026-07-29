@@ -14,6 +14,7 @@ typedef struct {
 
 struct cgem_generator_registrar {
     cgem_array_t attribute_keys;
+    cgem_array_t type_keys;
     cgem_array_t targets;
 };
 
@@ -35,23 +36,74 @@ static char *copy_string(const char *text)
     return copy;
 }
 
-bool cgem_generator_registrar_add_attribute_key(
-    cgem_generator_registrar_t *registrar, const char *key)
+static bool add_string(cgem_array_t *array, const char *value)
 {
     char *copy;
 
-    if (!registrar || !key) {
+    if (!value) {
         return false;
     }
-    copy = copy_string(key);
+    copy = copy_string(value);
     if (!copy) {
         return false;
     }
-    if (!cgem_array_push_back(&registrar->attribute_keys, &copy)) {
+    if (!cgem_array_push_back(array, &copy)) {
         cgem_free(copy);
         return false;
     }
     return true;
+}
+
+static bool has_string(const cgem_array_t *array, const char *value)
+{
+    size_t i;
+
+    if (!value) {
+        return false;
+    }
+    for (i = 0; i < cgem_array_size(array); i++) {
+        char *existing = *(char **) cgem_array_at(array, i);
+
+        if (strcmp(existing, value) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *get_string(const cgem_array_t *array, size_t index)
+{
+    char **slot = cgem_array_at(array, index);
+
+    return slot ? *slot : NULL;
+}
+
+static void free_string_array(cgem_array_t *array)
+{
+    size_t i;
+
+    for (i = 0; i < cgem_array_size(array); i++) {
+        cgem_free(*(char **) cgem_array_at(array, i));
+    }
+    cgem_array_deinit(array);
+}
+
+bool cgem_generator_registrar_add_attribute_key(
+    cgem_generator_registrar_t *registrar, const char *key)
+{
+    if (!registrar) {
+        return false;
+    }
+    return add_string(&registrar->attribute_keys, key);
+}
+
+bool cgem_generator_registrar_add_type_key(cgem_generator_registrar_t *registrar,
+                                           const char *name)
+{
+    if (!registrar) {
+        return false;
+    }
+    return add_string(&registrar->type_keys, name);
 }
 
 bool cgem_generator_registrar_add_target(cgem_generator_registrar_t *registrar,
@@ -78,6 +130,7 @@ bool cgem_generator_registrar_add_target(cgem_generator_registrar_t *registrar,
 static void init_registrar(cgem_generator_registrar_t *registrar)
 {
     cgem_array_init(&registrar->attribute_keys, 0, sizeof(char *));
+    cgem_array_init(&registrar->type_keys, 0, sizeof(char *));
     cgem_array_init(&registrar->targets, 0, sizeof(generator_target_t));
 }
 
@@ -85,10 +138,8 @@ static void free_registrar_contents(cgem_generator_registrar_t *registrar)
 {
     size_t i;
 
-    for (i = 0; i < cgem_array_size(&registrar->attribute_keys); i++) {
-        cgem_free(*(char **) cgem_array_at(&registrar->attribute_keys, i));
-    }
-    cgem_array_deinit(&registrar->attribute_keys);
+    free_string_array(&registrar->attribute_keys);
+    free_string_array(&registrar->type_keys);
     for (i = 0; i < cgem_array_size(&registrar->targets); i++) {
         generator_target_t *target = cgem_array_at(&registrar->targets, i);
 
@@ -97,8 +148,9 @@ static void free_registrar_contents(cgem_generator_registrar_t *registrar)
     cgem_array_deinit(&registrar->targets);
 }
 
-cgem_generator_t *cgem_generator_load(const char *path, char *error,
-                                      size_t error_size)
+cgem_generator_t *cgem_generator_load(const char *path,
+                                      const cgem_attributes_t *config,
+                                      char *error, size_t error_size)
 {
     void *library;
     cgem_generator_entry_fn_t entry;
@@ -145,7 +197,7 @@ cgem_generator_t *cgem_generator_load(const char *path, char *error,
     generator->library = library;
     generator->vtable = vtable;
     init_registrar(&generator->registrar);
-    if (!vtable->init(&generator->registrar, error, error_size)) {
+    if (!vtable->init(&generator->registrar, config, error, error_size)) {
         free_registrar_contents(&generator->registrar);
         cgem_free(generator);
         platform_library_close(library);
@@ -185,19 +237,8 @@ const char *cgem_generator_get_name(const cgem_generator_t *generator)
 bool cgem_generator_has_attribute_key(const cgem_generator_t *generator,
                                       const char *key)
 {
-    size_t i;
-
-    if (!generator || !key) {
-        return false;
-    }
-    for (i = 0; i < cgem_array_size(&generator->registrar.attribute_keys); i++) {
-        char *existing = *(char **) cgem_array_at(&generator->registrar.attribute_keys, i);
-
-        if (strcmp(existing, key) == 0) {
-            return true;
-        }
-    }
-    return false;
+    return generator ? has_string(&generator->registrar.attribute_keys, key)
+                     : false;
 }
 
 size_t cgem_generator_get_attribute_key_count(const cgem_generator_t *generator)
@@ -208,13 +249,27 @@ size_t cgem_generator_get_attribute_key_count(const cgem_generator_t *generator)
 const char *cgem_generator_get_attribute_key(const cgem_generator_t *generator,
                                              size_t index)
 {
-    char **slot;
+    return generator ? get_string(&generator->registrar.attribute_keys, index)
+                     : NULL;
+}
 
-    if (!generator) {
-        return NULL;
-    }
-    slot = cgem_array_at(&generator->registrar.attribute_keys, index);
-    return slot ? *slot : NULL;
+bool cgem_generator_has_type_key(const cgem_generator_t *generator,
+                                 const char *name)
+{
+    return generator ? has_string(&generator->registrar.type_keys, name)
+                     : false;
+}
+
+size_t cgem_generator_get_type_key_count(const cgem_generator_t *generator)
+{
+    return generator ? cgem_array_size(&generator->registrar.type_keys) : 0;
+}
+
+const char *cgem_generator_get_type_key(const cgem_generator_t *generator,
+                                        size_t index)
+{
+    return generator ? get_string(&generator->registrar.type_keys, index)
+                     : NULL;
 }
 
 size_t cgem_generator_get_target_count(const cgem_generator_t *generator)

@@ -117,13 +117,48 @@ static bool generate_default(cgem_node_t *root, cgem_generator_sink_t *sink,
     return walk(root, sink, "", error, error_size);
 }
 
-static bool init(cgem_generator_registrar_t *registrar, char *error,
+static bool standard_at_least_c99(const cgem_attributes_t *config)
+{
+    const cgem_attribute_t *attribute;
+    const char *standard;
+
+    if (!config) {
+        /* no config: assume a modern-enough compiler, same as if the
+         * caller had not restricted the standard at all */
+        return true;
+    }
+    attribute = cgem_attributes_find(config, "c.standard");
+    if (!attribute) {
+        return true;
+    }
+    standard = cgem_attribute_value_get_string(cgem_attribute_get_value(attribute));
+    if (!standard) {
+        return true;
+    }
+    return strcmp(standard, "c89") != 0 && strcmp(standard, "c90") != 0 &&
+           strcmp(standard, "ansi") != 0;
+}
+
+static bool init(cgem_generator_registrar_t *registrar,
+                 const cgem_attributes_t *config, char *error,
                  size_t error_size)
 {
     if (!cgem_generator_registrar_add_attribute_key(registrar, "name") ||
         !cgem_generator_registrar_add_attribute_key(registrar, "type") ||
         !cgem_generator_registrar_add_attribute_key(registrar, "define") ||
-        !cgem_generator_registrar_add_target(registrar, "default",
+        !cgem_generator_registrar_add_type_key(registrar, "int") ||
+        !cgem_generator_registrar_add_type_key(registrar, "long") ||
+        !cgem_generator_registrar_add_type_key(registrar, "char")) {
+        snprintf(error, error_size, "c generator: registration failed");
+        return false;
+    }
+    /* long long only exists from C99 onward */
+    if (standard_at_least_c99(config) &&
+        !cgem_generator_registrar_add_type_key(registrar, "long_long")) {
+        snprintf(error, error_size, "c generator: registration failed");
+        return false;
+    }
+    if (!cgem_generator_registrar_add_target(registrar, "default",
                                              generate_default)) {
         snprintf(error, error_size, "c generator: registration failed");
         return false;

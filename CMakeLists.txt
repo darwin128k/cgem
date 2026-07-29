@@ -42,6 +42,7 @@ set(CGEM_CORE_SOURCES
     src/cgem/core/object.c
     src/cgem/core/field.c
     src/cgem/core/struct.c
+    src/cgem/core/fn.c
     src/cgem/core/scope.c
     src/cgem/core/module.c
     src/cgem/core/package.c

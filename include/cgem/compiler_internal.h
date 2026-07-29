@@ -10,6 +10,7 @@
 #include "cgem/core/object.h"
 #include "cgem/core/field.h"
 #include "cgem/core/struct.h"
+#include "cgem/core/fn.h"
 #include "cgem/core/scope.h"
 #include "cgem/core/module.h"
 #include "cgem/core/package.h"

@@ -9,7 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static const char *node_string_attribute(cgem_node_t *node, const char *key)
+static const cgem_char_t *node_string_attribute(cgem_node_t *node,
+                                                 const cgem_char_t *key)
 {
     const cgem_attribute_t *attribute =
         cgem_attributes_find(cgem_node_get_attributes(node), key);
@@ -20,7 +21,8 @@ static const char *node_string_attribute(cgem_node_t *node, const char *key)
     return cgem_attribute_value_get_string(cgem_attribute_get_value(attribute));
 }
 
-static void write_guard_name(const char *name, char *out, size_t out_size)
+static void write_guard_name(const cgem_char_t *name, cgem_char_t *out,
+                             size_t out_size)
 {
     size_t i;
     size_t length = strlen(name);
@@ -29,24 +31,25 @@ static void write_guard_name(const char *name, char *out, size_t out_size)
         length = out_size - 3;
     }
     for (i = 0; i < length; i++) {
-        unsigned char ch = (unsigned char) name[i];
+        cgem_uchar_t ch = (cgem_uchar_t) name[i];
 
-        out[i] = (char) (isalnum(ch) ? toupper(ch) : '_');
+        out[i] = (cgem_char_t) (isalnum(ch) ? toupper(ch) : '_');
     }
     out[length] = '_';
     out[length + 1] = 'H';
     out[length + 2] = '\0';
 }
 
-static bool write_module_header(cgem_generator_sink_t *sink,
-                                const char *path, const char *name,
-                                char *error, size_t error_size)
+static cgem_bool_t write_module_header(cgem_generator_sink_t *sink,
+                                       const cgem_char_t *path,
+                                       const cgem_char_t *name,
+                                       cgem_char_t *error, size_t error_size)
 {
-    char relative_path[512];
-    char guard[128];
-    char content[512];
+    cgem_char_t relative_path[512];
+    cgem_char_t guard[128];
+    cgem_char_t content[512];
     cgem_writer_t *writer;
-    bool ok;
+    cgem_bool_t ok;
 
     snprintf(relative_path, sizeof(relative_path), "%s%s%s.h", path,
              path[0] ? "/" : "", name);
@@ -65,16 +68,17 @@ static bool write_module_header(cgem_generator_sink_t *sink,
     return ok;
 }
 
-static bool walk(cgem_node_t *node, cgem_generator_sink_t *sink,
-                 const char *path, char *error, size_t error_size)
+static cgem_bool_t walk(cgem_node_t *node, cgem_generator_sink_t *sink,
+                        const cgem_char_t *path, cgem_char_t *error,
+                        size_t error_size)
 {
-    const char *type = node_string_attribute(node, "type");
-    const char *name = node_string_attribute(node, "name");
-    char *child_path = NULL;
-    const char *next_path = path;
+    const cgem_char_t *type = node_string_attribute(node, "type");
+    const cgem_char_t *name = node_string_attribute(node, "name");
+    cgem_char_t *child_path = NULL;
+    const cgem_char_t *next_path = path;
     size_t count;
     size_t i;
-    bool ok = true;
+    cgem_bool_t ok = true;
 
     if (type && name && strcmp(type, "module") == 0) {
         return write_module_header(sink, path, name, error, error_size);
@@ -107,8 +111,9 @@ static bool walk(cgem_node_t *node, cgem_generator_sink_t *sink,
     return ok;
 }
 
-static bool generate_default(cgem_node_t *root, cgem_generator_sink_t *sink,
-                             char *error, size_t error_size)
+static cgem_bool_t generate_default(cgem_node_t *root,
+                                    cgem_generator_sink_t *sink,
+                                    cgem_char_t *error, size_t error_size)
 {
     if (!root || !sink) {
         snprintf(error, error_size, "c generator: missing root or sink");
@@ -117,10 +122,10 @@ static bool generate_default(cgem_node_t *root, cgem_generator_sink_t *sink,
     return walk(root, sink, "", error, error_size);
 }
 
-static bool standard_at_least_c99(const cgem_attributes_t *config)
+static cgem_bool_t standard_at_least_c99(const cgem_attributes_t *config)
 {
     const cgem_attribute_t *attribute;
-    const char *standard;
+    const cgem_char_t *standard;
 
     if (!config) {
         /* no config: assume a modern-enough compiler, same as if the
@@ -139,9 +144,9 @@ static bool standard_at_least_c99(const cgem_attributes_t *config)
            strcmp(standard, "ansi") != 0;
 }
 
-static bool init(cgem_generator_registrar_t *registrar,
-                 const cgem_attributes_t *config, char *error,
-                 size_t error_size)
+static cgem_bool_t init(cgem_generator_registrar_t *registrar,
+                        const cgem_attributes_t *config, cgem_char_t *error,
+                        size_t error_size)
 {
     if (!cgem_generator_registrar_add_attribute_key(registrar, "name") ||
         !cgem_generator_registrar_add_attribute_key(registrar, "type") ||

@@ -4,7 +4,7 @@
 
 #define CGEM_SYMBOL_NAME_KEY "name"
 
-cgem_symbol_t *cgem_symbol_new(const char *name, cgem_node_t *owner)
+cgem_symbol_t *cgem_symbol_new(const cgem_char_t *name, cgem_node_t *owner)
 {
     cgem_node_t *node = cgem_node_new(owner);
     cgem_attribute_value_t *value;
@@ -32,7 +32,7 @@ cgem_symbol_t *cgem_symbol_new(const char *name, cgem_node_t *owner)
     return node;
 }
 
-const char *cgem_symbol_get_name(const cgem_symbol_t *symbol)
+const cgem_char_t *cgem_symbol_get_name(const cgem_symbol_t *symbol)
 {
     cgem_attributes_t *attributes;
     const cgem_attribute_t *attribute;

@@ -2,7 +2,7 @@
 
 #include "cgem/core/allocator.h"
 
-bool cgem_node_init(cgem_node_t *node, cgem_node_t *owner)
+cgem_bool_t cgem_node_init(cgem_node_t *node, cgem_node_t *owner)
 {
     node->attributes = cgem_attributes_new();
     if (!node->attributes) {
@@ -58,19 +58,19 @@ cgem_node_t *cgem_node_get_owner(const cgem_node_t *node)
     return node ? node->owner : NULL;
 }
 
-void cgem_node_set_allows_children(cgem_node_t *node, bool allowed)
+void cgem_node_set_allows_children(cgem_node_t *node, cgem_bool_t allowed)
 {
     if (node) {
         node->allows_children = allowed;
     }
 }
 
-bool cgem_node_get_allows_children(const cgem_node_t *node)
+cgem_bool_t cgem_node_get_allows_children(const cgem_node_t *node)
 {
     return node ? node->allows_children : false;
 }
 
-bool cgem_node_add(cgem_node_t *node, cgem_node_t *child)
+cgem_bool_t cgem_node_add(cgem_node_t *node, cgem_node_t *child)
 {
     if (!node || !child || !node->allows_children) {
         return false;

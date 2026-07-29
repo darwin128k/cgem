@@ -8,10 +8,10 @@
 #include <string.h>
 
 struct cgem_generator_sink {
-    char *root;
+    cgem_char_t *root;
 };
 
-cgem_generator_sink_t *cgem_generator_sink_new(const char *root)
+cgem_generator_sink_t *cgem_generator_sink_new(const cgem_char_t *root)
 {
     cgem_generator_sink_t *sink;
     size_t length;
@@ -42,13 +42,14 @@ void cgem_generator_sink_free(cgem_generator_sink_t *sink)
     cgem_free(sink);
 }
 
-static char *join_path(const char *root, const char *relative)
+static cgem_char_t *join_path(const cgem_char_t *root,
+                              const cgem_char_t *relative)
 {
     size_t root_length = strlen(root);
-    bool needs_slash = root_length > 0 && root[root_length - 1] != '/';
+    cgem_bool_t needs_slash = root_length > 0 && root[root_length - 1] != '/';
     size_t relative_length = strlen(relative);
-    char *joined = cgem_alloc(root_length + (needs_slash ? 1 : 0) +
-                              relative_length + 1);
+    cgem_char_t *joined = cgem_alloc(root_length + (needs_slash ? 1 : 0) +
+                                     relative_length + 1);
     size_t at;
 
     if (!joined) {
@@ -63,13 +64,14 @@ static char *join_path(const char *root, const char *relative)
     return joined;
 }
 
-static bool ensure_parent_directory(const char *path, char *error,
-                                    size_t error_size)
+static cgem_bool_t ensure_parent_directory(const cgem_char_t *path,
+                                           cgem_char_t *error,
+                                           size_t error_size)
 {
-    const char *slash = strrchr(path, '/');
-    char *dir;
+    const cgem_char_t *slash = strrchr(path, '/');
+    cgem_char_t *dir;
     size_t dir_length;
-    int result;
+    cgem_int_t result;
 
     if (!slash) {
         return true;
@@ -88,10 +90,10 @@ static bool ensure_parent_directory(const char *path, char *error,
 }
 
 cgem_writer_t *cgem_generator_sink_open(cgem_generator_sink_t *sink,
-                                       const char *relative_path,
-                                       char *error, size_t error_size)
+                                       const cgem_char_t *relative_path,
+                                       cgem_char_t *error, size_t error_size)
 {
-    char *full_path;
+    cgem_char_t *full_path;
     cgem_writer_t *writer;
 
     if (!sink || !relative_path) {

@@ -4,7 +4,8 @@
 
 #include <string.h>
 
-bool cgem_array_init(cgem_array_t *array, size_t capacity, size_t element_size)
+cgem_bool_t cgem_array_init(cgem_array_t *array, size_t capacity,
+                            size_t element_size)
 {
     array->data = NULL;
     array->size = 0;
@@ -27,7 +28,7 @@ void cgem_array_deinit(cgem_array_t *array)
     array->capacity = 0;
 }
 
-bool cgem_array_resize(cgem_array_t *array, size_t new_capacity)
+cgem_bool_t cgem_array_resize(cgem_array_t *array, size_t new_capacity)
 {
     void *data;
 
@@ -43,7 +44,7 @@ bool cgem_array_resize(cgem_array_t *array, size_t new_capacity)
     return true;
 }
 
-bool cgem_array_push_back(cgem_array_t *array, const void *element)
+cgem_bool_t cgem_array_push_back(cgem_array_t *array, const void *element)
 {
     if (!array || !element) {
         return false;
@@ -55,8 +56,8 @@ bool cgem_array_push_back(cgem_array_t *array, const void *element)
             return false;
         }
     }
-    memcpy((char *) array->data + array->size * array->element_size, element,
-          array->element_size);
+    memcpy((cgem_char_t *) array->data + array->size * array->element_size,
+          element, array->element_size);
     array->size++;
     return true;
 }
@@ -80,7 +81,7 @@ void *cgem_array_at(const cgem_array_t *array, size_t index)
     if (!array || index >= array->size) {
         return NULL;
     }
-    return (char *) array->data + index * array->element_size;
+    return (cgem_char_t *) array->data + index * array->element_size;
 }
 
 size_t cgem_array_size(const cgem_array_t *array)

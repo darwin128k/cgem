@@ -19,18 +19,18 @@ struct cgem_attributes {
     size_t bucket_count;
 };
 
-static size_t hash_key(const char *key)
+static size_t hash_key(const cgem_char_t *key)
 {
     size_t hash = 5381;
-    unsigned char c;
+    cgem_uchar_t c;
 
-    while ((c = (unsigned char) *key++)) {
+    while ((c = (cgem_uchar_t) *key++)) {
         hash = hash * 33 + c;
     }
     return hash;
 }
 
-static bool ensure_buckets(cgem_attributes_t *attributes)
+static cgem_bool_t ensure_buckets(cgem_attributes_t *attributes)
 {
     if (attributes->buckets) {
         return true;
@@ -44,7 +44,7 @@ static bool ensure_buckets(cgem_attributes_t *attributes)
     return true;
 }
 
-static bool rehash(cgem_attributes_t *attributes, size_t new_bucket_count)
+static cgem_bool_t rehash(cgem_attributes_t *attributes, size_t new_bucket_count)
 {
     attr_bucket_node_t **new_buckets = cgem_alloc_zeroed(new_bucket_count, sizeof(*new_buckets));
 
@@ -71,7 +71,7 @@ static bool rehash(cgem_attributes_t *attributes, size_t new_bucket_count)
 }
 
 static attr_bucket_node_t *find_node(const cgem_attributes_t *attributes,
-                                     const char *key)
+                                     const cgem_char_t *key)
 {
     size_t index;
     attr_bucket_node_t *node;
@@ -82,7 +82,7 @@ static attr_bucket_node_t *find_node(const cgem_attributes_t *attributes,
     index = hash_key(key) % attributes->bucket_count;
     node = attributes->buckets[index];
     while (node) {
-        const char *existing_key = cgem_attribute_get_key(node->attribute);
+        const cgem_char_t *existing_key = cgem_attribute_get_key(node->attribute);
 
         if (existing_key && strcmp(existing_key, key) == 0) {
             return node;
@@ -126,10 +126,10 @@ void cgem_attributes_free(cgem_attributes_t *attributes)
     cgem_free(attributes);
 }
 
-bool cgem_attributes_add(cgem_attributes_t *attributes,
-                         cgem_attribute_t *attribute)
+cgem_bool_t cgem_attributes_add(cgem_attributes_t *attributes,
+                                cgem_attribute_t *attribute)
 {
-    const char *key;
+    const cgem_char_t *key;
     attr_bucket_node_t *existing;
     attr_bucket_node_t *node;
     size_t index;
@@ -192,7 +192,7 @@ const cgem_attribute_t *cgem_attributes_get(
 }
 
 const cgem_attribute_t *cgem_attributes_find(
-    const cgem_attributes_t *attributes, const char *key)
+    const cgem_attributes_t *attributes, const cgem_char_t *key)
 {
     attr_bucket_node_t *node;
 
@@ -203,7 +203,8 @@ const cgem_attribute_t *cgem_attributes_find(
     return node ? node->attribute : NULL;
 }
 
-bool cgem_attributes_has(const cgem_attributes_t *attributes, const char *key)
+cgem_bool_t cgem_attributes_has(const cgem_attributes_t *attributes,
+                                const cgem_char_t *key)
 {
     return cgem_attributes_find(attributes, key) != NULL;
 }

@@ -2,7 +2,8 @@
 
 #include <stdio.h>
 
-static bool file_read(void *self, char *buffer, size_t capacity, size_t *out_read)
+static cgem_bool_t file_read(void *self, cgem_char_t *buffer, size_t capacity,
+                             size_t *out_read)
 {
     FILE *file = self;
     size_t n = fread(buffer, 1, capacity, file);
@@ -24,7 +25,7 @@ static const cgem_reader_vtable_t file_reader_vtable = {
     file_reader_free
 };
 
-cgem_reader_t *cgem_file_reader_new(const char *path)
+cgem_reader_t *cgem_file_reader_new(const cgem_char_t *path)
 {
     FILE *file = fopen(path, "rb");
     cgem_reader_t *reader;
@@ -39,7 +40,7 @@ cgem_reader_t *cgem_file_reader_new(const char *path)
     return reader;
 }
 
-static bool file_write(void *self, const char *data, size_t size)
+static cgem_bool_t file_write(void *self, const cgem_char_t *data, size_t size)
 {
     FILE *file = self;
 
@@ -56,7 +57,7 @@ static const cgem_writer_vtable_t file_writer_vtable = {
     file_writer_free
 };
 
-cgem_writer_t *cgem_file_writer_new(const char *path)
+cgem_writer_t *cgem_file_writer_new(const cgem_char_t *path)
 {
     FILE *file = fopen(path, "wb");
     cgem_writer_t *writer;

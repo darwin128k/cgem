@@ -34,7 +34,8 @@ void cgem_writer_free(cgem_writer_t *writer)
     cgem_free(writer);
 }
 
-bool cgem_writer_write(cgem_writer_t *writer, const char *buffer, size_t size)
+cgem_bool_t cgem_writer_write(cgem_writer_t *writer, const cgem_char_t *buffer,
+                              size_t size)
 {
     if (!writer) {
         return false;

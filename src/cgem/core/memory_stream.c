@@ -5,7 +5,7 @@
 #include <string.h>
 
 typedef struct {
-    char *data;
+    cgem_char_t *data;
     size_t size;
     size_t capacity;
 } memory_buffer_t;
@@ -24,11 +24,12 @@ static void buffer_free(memory_buffer_t *buffer)
     cgem_free(buffer);
 }
 
-static bool buffer_append(memory_buffer_t *buffer, const char *data, size_t size)
+static cgem_bool_t buffer_append(memory_buffer_t *buffer,
+                                 const cgem_char_t *data, size_t size)
 {
     if (buffer->size + size > buffer->capacity) {
         size_t capacity = buffer->capacity ? buffer->capacity * 2 : 64;
-        char *grown;
+        cgem_char_t *grown;
 
         while (capacity < buffer->size + size) {
             capacity *= 2;
@@ -46,7 +47,8 @@ static bool buffer_append(memory_buffer_t *buffer, const char *data, size_t size
 }
 
 /* The writer always owns the buffer: its free() releases the data. */
-static bool memory_write(void *self, const char *data, size_t size)
+static cgem_bool_t memory_write(void *self, const cgem_char_t *data,
+                                size_t size)
 {
     return buffer_append((memory_buffer_t *) self, data, size);
 }
@@ -66,7 +68,8 @@ typedef struct {
     size_t at;
 } memory_reader_state_t;
 
-static bool memory_read(void *self, char *out, size_t capacity, size_t *out_read)
+static cgem_bool_t memory_read(void *self, cgem_char_t *out, size_t capacity,
+                               size_t *out_read)
 {
     memory_reader_state_t *state = self;
     size_t available = state->buffer->size - state->at;
@@ -168,7 +171,7 @@ cgem_writer_t *cgem_memory_writer_new(void)
     return writer;
 }
 
-cgem_reader_t *cgem_memory_reader_new(const char *data, size_t size)
+cgem_reader_t *cgem_memory_reader_new(const cgem_char_t *data, size_t size)
 {
     memory_buffer_t *buffer = buffer_new();
     cgem_reader_t *reader;

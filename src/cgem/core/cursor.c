@@ -7,7 +7,7 @@ struct cgem_cursor {
     cgem_array_t stack;
 };
 
-static bool push_selected(cgem_cursor_t *cursor, cgem_node_t *node)
+static cgem_bool_t push_selected(cgem_cursor_t *cursor, cgem_node_t *node)
 {
     return cgem_array_push_back(&cursor->stack, &node);
 }
@@ -41,7 +41,7 @@ void cgem_cursor_free(cgem_cursor_t *cursor)
     cgem_free(cursor);
 }
 
-bool cgem_cursor_select(cgem_cursor_t *cursor, size_t index)
+cgem_bool_t cgem_cursor_select(cgem_cursor_t *cursor, size_t index)
 {
     cgem_node_t *current;
     cgem_node_t *child;
@@ -60,7 +60,7 @@ bool cgem_cursor_select(cgem_cursor_t *cursor, size_t index)
     return push_selected(cursor, child);
 }
 
-bool cgem_cursor_unselect(cgem_cursor_t *cursor)
+cgem_bool_t cgem_cursor_unselect(cgem_cursor_t *cursor)
 {
     if (!cursor || cgem_array_size(&cursor->stack) <= 1) {
         return false;

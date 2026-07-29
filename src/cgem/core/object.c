@@ -4,7 +4,7 @@
 
 #define CGEM_OBJECT_TYPE_KEY "type"
 
-cgem_object_t *cgem_object_new(const char *name, const char *type,
+cgem_object_t *cgem_object_new(const cgem_char_t *name, const cgem_char_t *type,
                                cgem_node_t *owner)
 {
     cgem_node_t *node = cgem_symbol_new(name, owner);
@@ -33,7 +33,7 @@ cgem_object_t *cgem_object_new(const char *name, const char *type,
     return node;
 }
 
-const char *cgem_object_get_type(const cgem_object_t *object)
+const cgem_char_t *cgem_object_get_type(const cgem_object_t *object)
 {
     cgem_attributes_t *attributes;
     const cgem_attribute_t *attribute;

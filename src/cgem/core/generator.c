@@ -8,7 +8,7 @@
 #include <string.h>
 
 typedef struct {
-    char *name;
+    cgem_char_t *name;
     cgem_generate_fn_t fn;
 } generator_target_t;
 
@@ -24,10 +24,10 @@ struct cgem_generator {
     cgem_generator_registrar_t registrar;
 };
 
-static char *copy_string(const char *text)
+static cgem_char_t *copy_string(const cgem_char_t *text)
 {
     size_t length = strlen(text);
-    char *copy = cgem_alloc(length + 1);
+    cgem_char_t *copy = cgem_alloc(length + 1);
 
     if (!copy) {
         return NULL;
@@ -36,9 +36,9 @@ static char *copy_string(const char *text)
     return copy;
 }
 
-static bool add_string(cgem_array_t *array, const char *value)
+static cgem_bool_t add_string(cgem_array_t *array, const cgem_char_t *value)
 {
-    char *copy;
+    cgem_char_t *copy;
 
     if (!value) {
         return false;
@@ -54,7 +54,8 @@ static bool add_string(cgem_array_t *array, const char *value)
     return true;
 }
 
-static bool has_string(const cgem_array_t *array, const char *value)
+static cgem_bool_t has_string(const cgem_array_t *array,
+                              const cgem_char_t *value)
 {
     size_t i;
 
@@ -62,7 +63,7 @@ static bool has_string(const cgem_array_t *array, const char *value)
         return false;
     }
     for (i = 0; i < cgem_array_size(array); i++) {
-        char *existing = *(char **) cgem_array_at(array, i);
+        cgem_char_t *existing = *(cgem_char_t **) cgem_array_at(array, i);
 
         if (strcmp(existing, value) == 0) {
             return true;
@@ -71,9 +72,9 @@ static bool has_string(const cgem_array_t *array, const char *value)
     return false;
 }
 
-static const char *get_string(const cgem_array_t *array, size_t index)
+static const cgem_char_t *get_string(const cgem_array_t *array, size_t index)
 {
-    char **slot = cgem_array_at(array, index);
+    cgem_char_t **slot = cgem_array_at(array, index);
 
     return slot ? *slot : NULL;
 }
@@ -83,13 +84,13 @@ static void free_string_array(cgem_array_t *array)
     size_t i;
 
     for (i = 0; i < cgem_array_size(array); i++) {
-        cgem_free(*(char **) cgem_array_at(array, i));
+        cgem_free(*(cgem_char_t **) cgem_array_at(array, i));
     }
     cgem_array_deinit(array);
 }
 
-bool cgem_generator_registrar_add_attribute_key(
-    cgem_generator_registrar_t *registrar, const char *key)
+cgem_bool_t cgem_generator_registrar_add_attribute_key(
+    cgem_generator_registrar_t *registrar, const cgem_char_t *key)
 {
     if (!registrar) {
         return false;
@@ -97,8 +98,8 @@ bool cgem_generator_registrar_add_attribute_key(
     return add_string(&registrar->attribute_keys, key);
 }
 
-bool cgem_generator_registrar_add_type_key(cgem_generator_registrar_t *registrar,
-                                           const char *name)
+cgem_bool_t cgem_generator_registrar_add_type_key(
+    cgem_generator_registrar_t *registrar, const cgem_char_t *name)
 {
     if (!registrar) {
         return false;
@@ -106,9 +107,9 @@ bool cgem_generator_registrar_add_type_key(cgem_generator_registrar_t *registrar
     return add_string(&registrar->type_keys, name);
 }
 
-bool cgem_generator_registrar_add_target(cgem_generator_registrar_t *registrar,
-                                         const char *name,
-                                         cgem_generate_fn_t fn)
+cgem_bool_t cgem_generator_registrar_add_target(
+    cgem_generator_registrar_t *registrar, const cgem_char_t *name,
+    cgem_generate_fn_t fn)
 {
     generator_target_t target;
 
@@ -129,8 +130,8 @@ bool cgem_generator_registrar_add_target(cgem_generator_registrar_t *registrar,
 
 static void init_registrar(cgem_generator_registrar_t *registrar)
 {
-    cgem_array_init(&registrar->attribute_keys, 0, sizeof(char *));
-    cgem_array_init(&registrar->type_keys, 0, sizeof(char *));
+    cgem_array_init(&registrar->attribute_keys, 0, sizeof(cgem_char_t *));
+    cgem_array_init(&registrar->type_keys, 0, sizeof(cgem_char_t *));
     cgem_array_init(&registrar->targets, 0, sizeof(generator_target_t));
 }
 
@@ -148,9 +149,9 @@ static void free_registrar_contents(cgem_generator_registrar_t *registrar)
     cgem_array_deinit(&registrar->targets);
 }
 
-cgem_generator_t *cgem_generator_load(const char *path,
+cgem_generator_t *cgem_generator_load(const cgem_char_t *path,
                                       const cgem_attributes_t *config,
-                                      char *error, size_t error_size)
+                                      cgem_char_t *error, size_t error_size)
 {
     void *library;
     cgem_generator_entry_fn_t entry;
@@ -229,13 +230,13 @@ void cgem_generator_free(cgem_generator_t *generator)
     cgem_free(generator);
 }
 
-const char *cgem_generator_get_name(const cgem_generator_t *generator)
+const cgem_char_t *cgem_generator_get_name(const cgem_generator_t *generator)
 {
     return generator ? generator->vtable->name : NULL;
 }
 
-bool cgem_generator_has_attribute_key(const cgem_generator_t *generator,
-                                      const char *key)
+cgem_bool_t cgem_generator_has_attribute_key(const cgem_generator_t *generator,
+                                             const cgem_char_t *key)
 {
     return generator ? has_string(&generator->registrar.attribute_keys, key)
                      : false;
@@ -246,15 +247,15 @@ size_t cgem_generator_get_attribute_key_count(const cgem_generator_t *generator)
     return generator ? cgem_array_size(&generator->registrar.attribute_keys) : 0;
 }
 
-const char *cgem_generator_get_attribute_key(const cgem_generator_t *generator,
-                                             size_t index)
+const cgem_char_t *cgem_generator_get_attribute_key(
+    const cgem_generator_t *generator, size_t index)
 {
     return generator ? get_string(&generator->registrar.attribute_keys, index)
                      : NULL;
 }
 
-bool cgem_generator_has_type_key(const cgem_generator_t *generator,
-                                 const char *name)
+cgem_bool_t cgem_generator_has_type_key(const cgem_generator_t *generator,
+                                        const cgem_char_t *name)
 {
     return generator ? has_string(&generator->registrar.type_keys, name)
                      : false;
@@ -265,8 +266,8 @@ size_t cgem_generator_get_type_key_count(const cgem_generator_t *generator)
     return generator ? cgem_array_size(&generator->registrar.type_keys) : 0;
 }
 
-const char *cgem_generator_get_type_key(const cgem_generator_t *generator,
-                                        size_t index)
+const cgem_char_t *cgem_generator_get_type_key(
+    const cgem_generator_t *generator, size_t index)
 {
     return generator ? get_string(&generator->registrar.type_keys, index)
                      : NULL;
@@ -277,8 +278,8 @@ size_t cgem_generator_get_target_count(const cgem_generator_t *generator)
     return generator ? cgem_array_size(&generator->registrar.targets) : 0;
 }
 
-const char *cgem_generator_get_target_name(const cgem_generator_t *generator,
-                                           size_t index)
+const cgem_char_t *cgem_generator_get_target_name(
+    const cgem_generator_t *generator, size_t index)
 {
     generator_target_t *target;
 
@@ -289,9 +290,11 @@ const char *cgem_generator_get_target_name(const cgem_generator_t *generator,
     return target ? target->name : NULL;
 }
 
-bool cgem_generator_generate(cgem_generator_t *generator, const char *target,
-                             cgem_node_t *root, cgem_generator_sink_t *sink,
-                             char *error, size_t error_size)
+cgem_bool_t cgem_generator_generate(cgem_generator_t *generator,
+                                    const cgem_char_t *target,
+                                    cgem_node_t *root,
+                                    cgem_generator_sink_t *sink,
+                                    cgem_char_t *error, size_t error_size)
 {
     size_t i;
 

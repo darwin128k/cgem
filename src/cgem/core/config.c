@@ -10,11 +10,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char *read_all(cgem_reader_t *reader, size_t *out_size)
+static cgem_char_t *read_all(cgem_reader_t *reader, size_t *out_size)
 {
     size_t capacity = 256;
     size_t size = 0;
-    char *buffer = cgem_alloc(capacity);
+    cgem_char_t *buffer = cgem_alloc(capacity);
 
     if (!buffer) {
         return NULL;
@@ -24,7 +24,7 @@ static char *read_all(cgem_reader_t *reader, size_t *out_size)
 
         if (size == capacity) {
             size_t new_capacity = capacity * 2;
-            char *grown = cgem_realloc(buffer, new_capacity);
+            cgem_char_t *grown = cgem_realloc(buffer, new_capacity);
 
             if (!grown) {
                 cgem_free(buffer);
@@ -43,7 +43,7 @@ static char *read_all(cgem_reader_t *reader, size_t *out_size)
         size += n;
     }
     if (size == capacity) {
-        char *grown = cgem_realloc(buffer, size + 1);
+        cgem_char_t *grown = cgem_realloc(buffer, size + 1);
 
         if (!grown) {
             cgem_free(buffer);
@@ -56,21 +56,21 @@ static char *read_all(cgem_reader_t *reader, size_t *out_size)
     return buffer;
 }
 
-static char *trim(char *text)
+static cgem_char_t *trim(cgem_char_t *text)
 {
     size_t length;
 
-    while (*text && isspace((unsigned char) *text)) {
+    while (*text && isspace((cgem_uchar_t) *text)) {
         text++;
     }
     length = strlen(text);
-    while (length > 0 && isspace((unsigned char) text[length - 1])) {
+    while (length > 0 && isspace((cgem_uchar_t) text[length - 1])) {
         text[--length] = '\0';
     }
     return text;
 }
 
-static char *unquote(char *text)
+static cgem_char_t *unquote(cgem_char_t *text)
 {
     size_t length = strlen(text);
 
@@ -81,9 +81,9 @@ static char *unquote(char *text)
     return text;
 }
 
-static bool parse_int(const char *text, long long *value)
+static cgem_bool_t parse_int(const cgem_char_t *text, cgem_llong_t *value)
 {
-    char *end;
+    cgem_char_t *end;
 
     if (!*text) {
         return false;
@@ -92,9 +92,9 @@ static bool parse_int(const char *text, long long *value)
     return *end == '\0';
 }
 
-static cgem_attribute_value_t *classify_value(const char *raw)
+static cgem_attribute_value_t *classify_value(const cgem_char_t *raw)
 {
-    long long integer;
+    cgem_llong_t integer;
 
     if (strcmp(raw, "true") == 0) {
         return cgem_attribute_value_new_bool(true);
@@ -108,12 +108,13 @@ static cgem_attribute_value_t *classify_value(const char *raw)
     return cgem_attribute_value_new_string(raw);
 }
 
-static bool parse_key_value(cgem_attributes_t *config, char *text, char *error,
-                            size_t error_size)
+static cgem_bool_t parse_key_value(cgem_attributes_t *config,
+                                   cgem_char_t *text, cgem_char_t *error,
+                                   size_t error_size)
 {
-    char *equals;
-    char *key;
-    char *value_text;
+    cgem_char_t *equals;
+    cgem_char_t *key;
+    cgem_char_t *value_text;
     cgem_attribute_value_t *value;
     cgem_attribute_t *attribute;
 
@@ -149,10 +150,10 @@ static bool parse_key_value(cgem_attributes_t *config, char *text, char *error,
     return true;
 }
 
-static bool parse_line(cgem_attributes_t *config, char *line, char *error,
-                       size_t error_size)
+static cgem_bool_t parse_line(cgem_attributes_t *config, cgem_char_t *line,
+                              cgem_char_t *error, size_t error_size)
 {
-    char *trimmed = trim(line);
+    cgem_char_t *trimmed = trim(line);
 
     if (!*trimmed || trimmed[0] == '#') {
         return true;
@@ -160,12 +161,13 @@ static bool parse_line(cgem_attributes_t *config, char *line, char *error,
     return parse_key_value(config, trimmed, error, error_size);
 }
 
-bool cgem_config_parse_arg(cgem_attributes_t *config, const char *arg,
-                           char *error, size_t error_size)
+cgem_bool_t cgem_config_parse_arg(cgem_attributes_t *config,
+                                  const cgem_char_t *arg, cgem_char_t *error,
+                                  size_t error_size)
 {
     size_t length;
-    char *copy;
-    bool ok;
+    cgem_char_t *copy;
+    cgem_bool_t ok;
 
     if (!config || !arg) {
         snprintf(error, error_size, "no config or argument");
@@ -183,10 +185,11 @@ bool cgem_config_parse_arg(cgem_attributes_t *config, const char *arg,
     return ok;
 }
 
-bool cgem_config_parse_args(cgem_attributes_t *config, int argc, char **argv,
-                            char *error, size_t error_size)
+cgem_bool_t cgem_config_parse_args(cgem_attributes_t *config, cgem_int_t argc,
+                                   cgem_char_t **argv, cgem_char_t *error,
+                                   size_t error_size)
 {
-    int i;
+    cgem_int_t i;
 
     if (!config) {
         snprintf(error, error_size, "no config");
@@ -203,15 +206,15 @@ bool cgem_config_parse_args(cgem_attributes_t *config, int argc, char **argv,
     return true;
 }
 
-cgem_attributes_t *cgem_config_parse(cgem_reader_t *reader, char *error,
+cgem_attributes_t *cgem_config_parse(cgem_reader_t *reader, cgem_char_t *error,
                                      size_t error_size)
 {
     size_t size;
-    char *text;
+    cgem_char_t *text;
     cgem_attributes_t *config;
-    char *line_start;
+    cgem_char_t *line_start;
     size_t i;
-    bool ok = true;
+    cgem_bool_t ok = true;
 
     if (!reader) {
         snprintf(error, error_size, "no config reader");
@@ -231,7 +234,7 @@ cgem_attributes_t *cgem_config_parse(cgem_reader_t *reader, char *error,
     line_start = text;
     for (i = 0; i <= size && ok; i++) {
         if (i == size || text[i] == '\n') {
-            char saved = i < size ? text[i] : '\0';
+            cgem_char_t saved = i < size ? text[i] : '\0';
 
             if (i < size) {
                 text[i] = '\0';
@@ -251,7 +254,7 @@ cgem_attributes_t *cgem_config_parse(cgem_reader_t *reader, char *error,
     return config;
 }
 
-cgem_attributes_t *cgem_config_find(char *error, size_t error_size)
+cgem_attributes_t *cgem_config_find(cgem_char_t *error, size_t error_size)
 {
     cgem_reader_t *reader;
     cgem_attributes_t *config;

@@ -3,7 +3,8 @@
 #define CGEM_FIELD_TYPE "field"
 #define CGEM_FIELD_VALUE_KEY "value"
 
-cgem_field_t *cgem_field_new(const char *name, cgem_attribute_value_t *value,
+cgem_field_t *cgem_field_new(const cgem_char_t *name,
+                             cgem_attribute_value_t *value,
                              cgem_node_t *owner)
 {
     cgem_node_t *node = cgem_object_new(name, CGEM_FIELD_TYPE, owner);
@@ -44,7 +45,8 @@ const cgem_attribute_value_t *cgem_field_get_value(const cgem_field_t *field)
     return cgem_attribute_get_value(attribute);
 }
 
-bool cgem_field_set_value(cgem_field_t *field, cgem_attribute_value_t *value)
+cgem_bool_t cgem_field_set_value(cgem_field_t *field,
+                                 cgem_attribute_value_t *value)
 {
     cgem_attribute_t *attribute;
 

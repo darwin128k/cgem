@@ -34,8 +34,8 @@ void cgem_reader_free(cgem_reader_t *reader)
     cgem_free(reader);
 }
 
-bool cgem_reader_read(cgem_reader_t *reader, char *buffer, size_t capacity,
-                      size_t *out_read)
+cgem_bool_t cgem_reader_read(cgem_reader_t *reader, cgem_char_t *buffer,
+                             size_t capacity, size_t *out_read)
 {
     if (!reader) {
         return false;

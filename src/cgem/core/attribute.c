@@ -7,23 +7,23 @@
 struct cgem_attribute_value {
     cgem_attribute_value_kind_t kind;
     union {
-        bool boolean;
-        long long integer;
-        double floating;
-        char *string;
+        cgem_bool_t boolean;
+        cgem_llong_t integer;
+        cgem_double_t floating;
+        cgem_char_t *string;
         cgem_array_t list;
     };
 };
 
 struct cgem_attribute {
-    char *key;
+    cgem_char_t *key;
     cgem_attribute_value_t *value;
 };
 
-static char *copy_string(const char *text)
+static cgem_char_t *copy_string(const cgem_char_t *text)
 {
     size_t length = strlen(text);
-    char *copy = cgem_alloc(length + 1);
+    cgem_char_t *copy = cgem_alloc(length + 1);
 
     if (!copy) {
         return NULL;
@@ -48,7 +48,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_null(void)
     return new_value(ATTR_VALUE_NULL);
 }
 
-cgem_attribute_value_t *cgem_attribute_value_new_bool(bool value)
+cgem_attribute_value_t *cgem_attribute_value_new_bool(cgem_bool_t value)
 {
     cgem_attribute_value_t *result = new_value(ATTR_VALUE_BOOL);
 
@@ -58,7 +58,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_bool(bool value)
     return result;
 }
 
-cgem_attribute_value_t *cgem_attribute_value_new_int(long long value)
+cgem_attribute_value_t *cgem_attribute_value_new_int(cgem_llong_t value)
 {
     cgem_attribute_value_t *result = new_value(ATTR_VALUE_INT);
 
@@ -68,7 +68,7 @@ cgem_attribute_value_t *cgem_attribute_value_new_int(long long value)
     return result;
 }
 
-cgem_attribute_value_t *cgem_attribute_value_new_float(double value)
+cgem_attribute_value_t *cgem_attribute_value_new_float(cgem_double_t value)
 {
     cgem_attribute_value_t *result = new_value(ATTR_VALUE_FLOAT);
 
@@ -78,7 +78,8 @@ cgem_attribute_value_t *cgem_attribute_value_new_float(double value)
     return result;
 }
 
-cgem_attribute_value_t *cgem_attribute_value_new_string(const char *value)
+cgem_attribute_value_t *cgem_attribute_value_new_string(
+    const cgem_char_t *value)
 {
     cgem_attribute_value_t *result = new_value(ATTR_VALUE_STRING);
 
@@ -93,7 +94,8 @@ cgem_attribute_value_t *cgem_attribute_value_new_string(const char *value)
     return result;
 }
 
-cgem_attribute_value_t *cgem_attribute_value_new_symbol(const char *value)
+cgem_attribute_value_t *cgem_attribute_value_new_symbol(
+    const cgem_char_t *value)
 {
     cgem_attribute_value_t *result = new_value(ATTR_VALUE_SYMBOL);
 
@@ -146,8 +148,8 @@ void cgem_attribute_value_free(cgem_attribute_value_t *value)
     cgem_free(value);
 }
 
-bool cgem_attribute_value_list_append(cgem_attribute_value_t *list,
-                                      cgem_attribute_value_t *item)
+cgem_bool_t cgem_attribute_value_list_append(cgem_attribute_value_t *list,
+                                             cgem_attribute_value_t *item)
 {
     if (!list || !item || list->kind != ATTR_VALUE_LIST) {
         return false;
@@ -165,22 +167,24 @@ cgem_attribute_value_kind_t cgem_attribute_value_get_kind(
     return value ? value->kind : ATTR_VALUE_NULL;
 }
 
-bool cgem_attribute_value_get_bool(const cgem_attribute_value_t *value)
+cgem_bool_t cgem_attribute_value_get_bool(const cgem_attribute_value_t *value)
 {
     return value && value->kind == ATTR_VALUE_BOOL ? value->boolean : false;
 }
 
-long long cgem_attribute_value_get_int(const cgem_attribute_value_t *value)
+cgem_llong_t cgem_attribute_value_get_int(const cgem_attribute_value_t *value)
 {
     return value && value->kind == ATTR_VALUE_INT ? value->integer : 0;
 }
 
-double cgem_attribute_value_get_float(const cgem_attribute_value_t *value)
+cgem_double_t cgem_attribute_value_get_float(
+    const cgem_attribute_value_t *value)
 {
     return value && value->kind == ATTR_VALUE_FLOAT ? value->floating : 0.0;
 }
 
-const char *cgem_attribute_value_get_string(const cgem_attribute_value_t *value)
+const cgem_char_t *cgem_attribute_value_get_string(
+    const cgem_attribute_value_t *value)
 {
     if (!value || (value->kind != ATTR_VALUE_STRING &&
                    value->kind != ATTR_VALUE_SYMBOL)) {
@@ -205,7 +209,7 @@ const cgem_attribute_value_t *cgem_attribute_value_list_get(
     return cgem_array_at(&value->list, index);
 }
 
-cgem_attribute_t *cgem_attribute_new(const char *key,
+cgem_attribute_t *cgem_attribute_new(const cgem_char_t *key,
                                      cgem_attribute_value_t *value)
 {
     cgem_attribute_t *attribute = cgem_alloc_zeroed(1, sizeof(*attribute));
@@ -232,7 +236,7 @@ void cgem_attribute_free(cgem_attribute_t *attribute)
     cgem_free(attribute);
 }
 
-const char *cgem_attribute_get_key(const cgem_attribute_t *attribute)
+const cgem_char_t *cgem_attribute_get_key(const cgem_attribute_t *attribute)
 {
     return attribute ? attribute->key : NULL;
 }

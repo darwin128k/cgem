@@ -11,6 +11,11 @@
 #include "cgem/core/field.h"
 #include "cgem/core/struct.h"
 #include "cgem/core/fn.h"
+#include "cgem/core/type.h"
+#include "cgem/core/ref.h"
+#include "cgem/core/literal.h"
+#include "cgem/core/call.h"
+#include "cgem/core/return.h"
 #include "cgem/core/scope.h"
 #include "cgem/core/module.h"
 #include "cgem/core/package.h"
@@ -25,6 +30,7 @@
 #include "cgem/core/generator.h"
 #include "cgem/core/cursor.h"
 #include "cgem/core/tree.h"
+#include "cgem/core/resolver.h"
 #include "cgem/diagnostic.h"
 
 #include <stdbool.h>

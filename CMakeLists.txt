@@ -44,6 +44,11 @@ set(CGEM_CORE_SOURCES
     src/cgem/core/struct.c
     src/cgem/core/param.c
     src/cgem/core/fn.c
+    src/cgem/core/type.c
+    src/cgem/core/ref.c
+    src/cgem/core/literal.c
+    src/cgem/core/call.c
+    src/cgem/core/return.c
     src/cgem/core/scope.c
     src/cgem/core/module.c
     src/cgem/core/package.c
@@ -56,6 +61,7 @@ set(CGEM_CORE_SOURCES
     src/cgem/core/config.c
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
+    src/cgem/core/resolver.c
     src/cgem/core/generator.c
     src/cgem/core/generator_sink.c
     ${CGEM_PLATFORM_SOURCE}

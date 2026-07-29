@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 
-#define CGEM_GENERATOR_ABI_VERSION 5u
+#define CGEM_GENERATOR_ABI_VERSION 6u
 #define CGEM_GENERATOR_ENTRY_SYMBOL "cgem_generator_get_vtable"
 
 typedef struct cgem_generator_registrar cgem_generator_registrar_t;
@@ -27,13 +27,20 @@ typedef cgem_bool_t (*cgem_generate_fn_t)(cgem_node_t *root,
  *
  * Attribute keys are things like "define"/"extern" (@define, @extern in the
  * DSL). Type keys are global type names the generator provides (e.g.
- * "long_long", only registered for C99 and later). Which ones get
- * registered can depend on the resolved config passed into init(), since
- * that is standard/target-specific and core has no opinion on it. */
+ * "long_long", only registered for C99 and later), each with the type's
+ * real byte size in `size`. Core never assumes or hardcodes this size --
+ * the generator must obtain it from the actual configured target toolchain
+ * (e.g. by querying the configured cross compiler's predefined macros),
+ * never from the host compiler that happens to be running cgem itself, so
+ * the result stays correct even when cross-compiling. Which type keys get
+ * registered, and their sizes, can depend on the resolved config passed
+ * into init(), since that is standard/target-specific and core has no
+ * opinion on it. */
 cgem_bool_t cgem_generator_registrar_add_attribute_key(
     cgem_generator_registrar_t *registrar, const cgem_char_t *key);
 cgem_bool_t cgem_generator_registrar_add_type_key(
-    cgem_generator_registrar_t *registrar, const cgem_char_t *name);
+    cgem_generator_registrar_t *registrar, const cgem_char_t *name,
+    size_t size);
 cgem_bool_t cgem_generator_registrar_add_target(
     cgem_generator_registrar_t *registrar, const cgem_char_t *name,
     cgem_generate_fn_t fn);

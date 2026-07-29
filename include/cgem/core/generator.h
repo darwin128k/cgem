@@ -29,6 +29,10 @@ cgem_bool_t cgem_generator_has_type_key(const cgem_generator_t *generator,
 size_t cgem_generator_get_type_key_count(const cgem_generator_t *generator);
 const cgem_char_t *cgem_generator_get_type_key(
     const cgem_generator_t *generator, size_t index);
+/* Real byte size on the generator's actually configured target, queried
+ * from the target toolchain -- never a host-compiler assumption. */
+size_t cgem_generator_get_type_key_size(const cgem_generator_t *generator,
+                                        size_t index);
 
 size_t cgem_generator_get_target_count(const cgem_generator_t *generator);
 const cgem_char_t *cgem_generator_get_target_name(
@@ -39,5 +43,14 @@ cgem_bool_t cgem_generator_generate(cgem_generator_t *generator,
                                     cgem_node_t *root,
                                     cgem_generator_sink_t *sink,
                                     cgem_char_t *error, size_t error_size);
+
+/* Materializes the generator's registered type keys as flat leaf nodes
+ * (cgem_type_t) under `owner` -- the bottom of the type hierarchy, each
+ * carrying the real, target-queried size the generator supplied via
+ * cgem_generator_registrar_add_type_key. Fails atomically: on any error,
+ * nodes already added to `owner` are left in place (owner owns them and
+ * will free them normally), but no partial node is left dangling. */
+cgem_bool_t cgem_generator_import_types(const cgem_generator_t *generator,
+                                        cgem_node_t *owner);
 
 #endif

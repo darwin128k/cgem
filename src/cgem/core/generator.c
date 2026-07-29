@@ -2,6 +2,7 @@
 
 #include "cgem/core/allocator.h"
 #include "cgem/core/array.h"
+#include "cgem/core/type.h"
 #include "cgem/platform.h"
 
 #include <stdio.h>
@@ -11,6 +12,11 @@ typedef struct {
     cgem_char_t *name;
     cgem_generate_fn_t fn;
 } generator_target_t;
+
+typedef struct {
+    cgem_char_t *name;
+    size_t size;
+} generator_type_key_t;
 
 struct cgem_generator_registrar {
     cgem_array_t attribute_keys;
@@ -89,6 +95,36 @@ static void free_string_array(cgem_array_t *array)
     cgem_array_deinit(array);
 }
 
+static cgem_bool_t has_type_key(const cgem_array_t *array,
+                                const cgem_char_t *name)
+{
+    size_t i;
+
+    if (!name) {
+        return false;
+    }
+    for (i = 0; i < cgem_array_size(array); i++) {
+        generator_type_key_t *entry = cgem_array_at(array, i);
+
+        if (strcmp(entry->name, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void free_type_key_array(cgem_array_t *array)
+{
+    size_t i;
+
+    for (i = 0; i < cgem_array_size(array); i++) {
+        generator_type_key_t *entry = cgem_array_at(array, i);
+
+        cgem_free(entry->name);
+    }
+    cgem_array_deinit(array);
+}
+
 cgem_bool_t cgem_generator_registrar_add_attribute_key(
     cgem_generator_registrar_t *registrar, const cgem_char_t *key)
 {
@@ -99,12 +135,24 @@ cgem_bool_t cgem_generator_registrar_add_attribute_key(
 }
 
 cgem_bool_t cgem_generator_registrar_add_type_key(
-    cgem_generator_registrar_t *registrar, const cgem_char_t *name)
+    cgem_generator_registrar_t *registrar, const cgem_char_t *name,
+    size_t size)
 {
-    if (!registrar) {
+    generator_type_key_t entry;
+
+    if (!registrar || !name) {
         return false;
     }
-    return add_string(&registrar->type_keys, name);
+    entry.name = copy_string(name);
+    if (!entry.name) {
+        return false;
+    }
+    entry.size = size;
+    if (!cgem_array_push_back(&registrar->type_keys, &entry)) {
+        cgem_free(entry.name);
+        return false;
+    }
+    return true;
 }
 
 cgem_bool_t cgem_generator_registrar_add_target(
@@ -131,7 +179,7 @@ cgem_bool_t cgem_generator_registrar_add_target(
 static void init_registrar(cgem_generator_registrar_t *registrar)
 {
     cgem_array_init(&registrar->attribute_keys, 0, sizeof(cgem_char_t *));
-    cgem_array_init(&registrar->type_keys, 0, sizeof(cgem_char_t *));
+    cgem_array_init(&registrar->type_keys, 0, sizeof(generator_type_key_t));
     cgem_array_init(&registrar->targets, 0, sizeof(generator_target_t));
 }
 
@@ -140,7 +188,7 @@ static void free_registrar_contents(cgem_generator_registrar_t *registrar)
     size_t i;
 
     free_string_array(&registrar->attribute_keys);
-    free_string_array(&registrar->type_keys);
+    free_type_key_array(&registrar->type_keys);
     for (i = 0; i < cgem_array_size(&registrar->targets); i++) {
         generator_target_t *target = cgem_array_at(&registrar->targets, i);
 
@@ -257,7 +305,7 @@ const cgem_char_t *cgem_generator_get_attribute_key(
 cgem_bool_t cgem_generator_has_type_key(const cgem_generator_t *generator,
                                         const cgem_char_t *name)
 {
-    return generator ? has_string(&generator->registrar.type_keys, name)
+    return generator ? has_type_key(&generator->registrar.type_keys, name)
                      : false;
 }
 
@@ -269,8 +317,25 @@ size_t cgem_generator_get_type_key_count(const cgem_generator_t *generator)
 const cgem_char_t *cgem_generator_get_type_key(
     const cgem_generator_t *generator, size_t index)
 {
-    return generator ? get_string(&generator->registrar.type_keys, index)
-                     : NULL;
+    generator_type_key_t *entry;
+
+    if (!generator) {
+        return NULL;
+    }
+    entry = cgem_array_at(&generator->registrar.type_keys, index);
+    return entry ? entry->name : NULL;
+}
+
+size_t cgem_generator_get_type_key_size(const cgem_generator_t *generator,
+                                        size_t index)
+{
+    generator_type_key_t *entry;
+
+    if (!generator) {
+        return 0;
+    }
+    entry = cgem_array_at(&generator->registrar.type_keys, index);
+    return entry ? entry->size : 0;
 }
 
 size_t cgem_generator_get_target_count(const cgem_generator_t *generator)
@@ -312,4 +377,27 @@ cgem_bool_t cgem_generator_generate(cgem_generator_t *generator,
     }
     snprintf(error, error_size, "unknown generator target: %s", target);
     return false;
+}
+
+cgem_bool_t cgem_generator_import_types(const cgem_generator_t *generator,
+                                        cgem_node_t *owner)
+{
+    size_t count;
+    size_t i;
+
+    if (!generator || !owner) {
+        return false;
+    }
+    count = cgem_generator_get_type_key_count(generator);
+    for (i = 0; i < count; i++) {
+        const cgem_char_t *name = cgem_generator_get_type_key(generator, i);
+        size_t size = cgem_generator_get_type_key_size(generator, i);
+        cgem_type_t *type = cgem_type_new(name, size, owner);
+
+        if (!type || !cgem_node_add(owner, type)) {
+            cgem_node_free(type);
+            return false;
+        }
+    }
+    return true;
 }

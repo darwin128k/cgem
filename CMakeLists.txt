@@ -47,6 +47,8 @@ set(CGEM_CORE_SOURCES
     src/cgem/core/writer.c
     src/cgem/core/stream.c
     src/cgem/core/memory_stream.c
+    src/cgem/core/file_stream.c
+    src/cgem/core/config.c
     src/cgem/core/cursor.c
     src/cgem/core/tree.c
     src/cgem/core/generator.c

@@ -44,6 +44,11 @@ size_t cgem_attribute_value_list_get_count(const cgem_attribute_value_t *value);
 const cgem_attribute_value_t *cgem_attribute_value_list_get(
     const cgem_attribute_value_t *value, size_t index);
 
+/* Size of the value's own content in bytes: 0 for NULL, sizeof() of the
+ * underlying scalar for BOOL/INT/FLOAT, string length + 1 for STRING/SYMBOL,
+ * sum of element sizes (recursively) for LIST. */
+size_t cgem_attribute_value_get_size(const cgem_attribute_value_t *value);
+
 cgem_attribute_t *cgem_attribute_new(const cgem_char_t *key,
                                      cgem_attribute_value_t *value);
 void cgem_attribute_free(cgem_attribute_t *attribute);

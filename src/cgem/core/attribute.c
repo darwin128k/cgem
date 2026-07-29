@@ -200,6 +200,36 @@ size_t cgem_attribute_value_list_get_count(const cgem_attribute_value_t *value)
                : 0;
 }
 
+size_t cgem_attribute_value_get_size(const cgem_attribute_value_t *value)
+{
+    if (!value) {
+        return 0;
+    }
+    switch (value->kind) {
+    case ATTR_VALUE_NULL:
+        return 0;
+    case ATTR_VALUE_BOOL:
+        return sizeof(cgem_bool_t);
+    case ATTR_VALUE_INT:
+        return sizeof(cgem_llong_t);
+    case ATTR_VALUE_FLOAT:
+        return sizeof(cgem_double_t);
+    case ATTR_VALUE_STRING:
+    case ATTR_VALUE_SYMBOL:
+        return strlen(value->string) + 1;
+    case ATTR_VALUE_LIST: {
+        size_t total = 0;
+
+        for (size_t i = 0; i < cgem_array_size(&value->list); i++) {
+            total += cgem_attribute_value_get_size(cgem_array_at(&value->list, i));
+        }
+        return total;
+    }
+    default:
+        return 0;
+    }
+}
+
 const cgem_attribute_value_t *cgem_attribute_value_list_get(
     const cgem_attribute_value_t *value, size_t index)
 {
